@@ -1,4 +1,4 @@
-bedlam-solver
+Bedlam-Solver
 ===========
 C++ implementation of Algorithm X (Dancing Links), used to solve the bedlam cube puzzle. Does not take user input (yet).
 
