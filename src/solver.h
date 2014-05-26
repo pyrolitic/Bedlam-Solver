@@ -12,13 +12,13 @@
 
 #define NON_FLAG_NODE_NAME '\0'
 
-class CSolver {
+class Solver {
 public:
 	enum store_type {
 		sequential, interleaved
 	};
 
-	CSolver(int w, int h, int d, store_type storeType = sequential) :
+	Solver(int w, int h, int d, store_type storeType = sequential) :
 			width(w), height(h), depth(d) {
 		sType = storeType;
 
@@ -31,9 +31,9 @@ public:
 		currentSolution = (char*) malloc(w * h * d * sizeof(char));
 	}
 
-	~CSolver() {
-		for (std::vector<std::list<CPiece*> >::iterator it = pieces.begin(); it != pieces.end(); it++) {
-			for (std::list<CPiece*>::iterator it2 = it->begin(); it2 != it->end(); it2++) {
+	~Solver() {
+		for (std::vector<std::list<Piece*> >::iterator it = pieces.begin(); it != pieces.end(); it++) {
+			for (std::list<Piece*>::iterator it2 = it->begin(); it2 != it->end(); it2++) {
 				if (*it2) delete *it2;
 			}
 		}
@@ -53,7 +53,7 @@ public:
 	}
 
 private:
-	std::vector<std::list<CPiece*> > pieces; //pieces with all their images
+	std::vector<std::list<Piece*> > pieces; //pieces with all their images
 	store_type sType;
 
 	std::string aliases;

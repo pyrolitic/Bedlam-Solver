@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 
+#include <list>
 #include <string>
 
 #include <iostream>
@@ -17,36 +18,53 @@
 #define two_rotations 2
 // 00 00 00
 //============================================================================================
-class CPiece {
+class Piece {
 public:
+	struct block{
+		int x, y, z;
+		block(int x, int y, int z):
+			x(x), y(y), z(z) {}
+
+		block() {
+			x = y = z = 0; 
+		}
+	};
+
 	int width;
 	int height;
 	int depth;
+	std::list<block> blocks;
 
-	CPiece(int w, int h, int d);
-	CPiece(int w, int h, int d, const char* data);
-	~CPiece();
+	Piece(); //empty piece
+	Piece(int w, int h, int d, const char* data); //piece from (layer then row major) dense matrix
+	~Piece();
 
-	bool& data(int x, int y, int z);
+	//bool& data(int x, int y, int z);
 
-	CPiece* copy();
-	CPiece* rotated(int axis, int turns);
+	Piece* copy();
+	//Piece* rotated(int axis, int turns);
+	int mass(); //the number of solid blocks
 
-	int volume();
-
-	bool axialSymmetry(int axis, int turns);
-
-	void checkAxialSymmetry();
-
-	bool operator ==(CPiece& other) {
-		if (width != other.width or height != other.height or depth != other.depth) return false;
-		for (int i = 0; i < width * height * depth; i++)
-			if (solid[i] != (&other.data(0, 0, 0))[i]) return false;
-
-		return true;
+	void insert(int x, int y, int z){
+		blocks.push_back(block(x, y, z));
 	}
 
-	void print() {
+	//TODO: fix; find a way to do this in at most O(n)
+	bool operator == (Piece& other) {
+		if (width != other.width or height != other.height or depth != other.depth) return false;
+
+		/*for (blocks::iterator it1 = blocks.begin(), other.blocks::iterator it2 = other.begin(); it1 != blocks.end() && it2 != other.blocks.end(); it1++, it2++){
+			block& a = *it1;
+			block& b = *it2;
+			if (a.x != b.x || a.y != b.y || a.z != b.z) return false;
+		}
+
+		return true;*/
+
+		return false;
+	}
+
+	/*void print() {
 		std::cout << "-----" << std::endl;
 		for (int z = 0; z < depth; z++) {
 			for (int y = 0; y < height; y++) {
@@ -59,80 +77,54 @@ public:
 
 			std::cout << "-----" << std::endl;
 		}
-	}
+	}*/
 
-private:
-	bool* solid;
-	char symmetry;
+	
 };
 //============================================================================================
-inline CPiece::CPiece(int w, int h, int d) :
-		width(w), height(h), depth(d), symmetry(0) {
-	solid = (bool*) malloc(width * height * depth * sizeof(bool));
+inline Piece::Piece() {
+	width = height = depth = 0;
 }
 
-inline CPiece::CPiece(int w, int h, int d, const char* data) :
+inline Piece::Piece(int w, int h, int d, const char* data) :
 		width(w), height(h), depth(d) {
 
 	assert(strlen(data) == w * h * d);
 
-	solid = (bool*) malloc(width * height * depth * sizeof(bool));
-
-	for (int i = 0; i < width * height * depth; i++)
-		solid[i] = (data[i] == ' ') ? false : true;
-
-	//checkAxialSymmetry();
+	for (int z = 0; z < depth; z++) {
+		for (int y = 0; y < height; y++) {
+			for (int x = 0; x < width; x++) {
+				if (data[(x + y * width) + z * width * height] != ' '){
+					blocks.push_back(block(x, y, z));
+				}
+			}
+		}
+	}
 }
 
-inline CPiece::~CPiece() {
-	free(solid);
-}
-//============================================================================================
-inline bool& CPiece::data(int x, int y, int z) {
-	return solid[(x + y * width) + z * width * height];
-}
-
-inline bool CPiece::axialSymmetry(int axis, int turns) {
-	assert(axis >= 0 and axis < 3);
-	turns = abs(turns);
-	assert(turns < 4);
-
-	//has to be fully symmetric
-	if (turns == 1 or turns == 3) return symmetry & (1 << axis);
-	else if (turns == 2) return symmetry & (1 << (axis + 1));
-	else return true; //turns == 0
-}
-
-inline int CPiece::volume() {
-	int v = 0;
-
-	for (int x = 0; x < width; x++)
-		for (int y = 0; y < height; y++)
-			for (int z = 0; z < depth; z++)
-				if (data(x, y, z)) v++;
-
-	return v;
+inline Piece::~Piece() {
 }
 //============================================================================================
-inline CPiece* CPiece::copy() {
-	CPiece* n = new CPiece(width, height, depth);
-
-	memcpy(&(n->data(0, 0, 0)), solid, width * height * depth * sizeof(bool));
-	//n->checkAxialSymmetry();
+inline int Piece::mass() {
+	return blocks.size();
+}
+//============================================================================================
+inline Piece* Piece::copy() {
+	Piece* n = new Piece();
+	n->blocks.insert(n->blocks.begin(), blocks.begin(), blocks.end());
 	return n;
 }
-
-inline CPiece* CPiece::rotated(int axis, int turns) {
+/*
+inline Piece* Piece::rotated(int axis, int turns) {
 	assert(turns > 0);
 	assert(turns < 4);
 
 	bool dimSwap = turns & 1;
-
-	CPiece* n;
+	Piece* n;
 
 	switch (axis) {
 	case axis_x:
-		n = dimSwap ? new CPiece(width, depth, height) : new CPiece(width, height, depth);
+		n = dimSwap ? new Piece(width, depth, height) : new Piece(width, height, depth);
 
 		for (int z = 0; z < depth; z++)
 			for (int y = 0; y < height; y++)
@@ -144,7 +136,7 @@ inline CPiece* CPiece::rotated(int axis, int turns) {
 		break;
 
 	case axis_y:
-		n = dimSwap ? new CPiece(depth, height, width) : new CPiece(width, height, depth);
+		n = dimSwap ? new Piece(depth, height, width) : new Piece(width, height, depth);
 
 		for (int z = 0; z < depth; z++)
 			for (int y = 0; y < height; y++)
@@ -156,7 +148,7 @@ inline CPiece* CPiece::rotated(int axis, int turns) {
 		break;
 
 	case axis_z:
-		n = dimSwap ? new CPiece(height, width, depth) : new CPiece(width, height, depth);
+		n = dimSwap ? new Piece(height, width, depth) : new Piece(width, height, depth);
 
 		for (int z = 0; z < depth; z++)
 			for (int y = 0; y < height; y++)
@@ -169,9 +161,9 @@ inline CPiece* CPiece::rotated(int axis, int turns) {
 	}
 
 	return n;
-}
+}*/
 //============================================================================================
-inline void CPiece::checkAxialSymmetry() {
+/*inline void Piece::checkAxialSymmetry() {
 
 	symmetry = 0x3F; //assume all is true
 
@@ -200,7 +192,7 @@ inline void CPiece::checkAxialSymmetry() {
 			bool last = (axis == axis_x) ? data(i, 0, 0) : (axis == axis_y) ? data(0, i, 0) : data(0, 0, i); //the first
 
 			//slice by slice
-			for (int j = 0; j < b; j++)
+			for (int j = 0; j < b; j++){
 				for (int k = 0; k < c; k++) {
 					bool& cell = (axis == axis_x) ? data(i, j, k) : (axis == axis_y) ? data(k, i, j) : data(k, j, i);
 
@@ -217,8 +209,10 @@ inline void CPiece::checkAxialSymmetry() {
 
 					last = cell;
 				}
+			}
 		}
 	}
-}
+}*/
+
 //============================================================================================
 #endif /* PIECE_H */

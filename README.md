@@ -1,7 +1,10 @@
 Bedlam-Solver
 ===========
-C++ implementation of Algorithm X (Dancing Links), used to solve the bedlam cube puzzle. Does not take user input (yet).
+C++ implementation of Algorithm X (Dancing Links), used to solve the bedlam cube puzzle.
 
+GUI development branch, uses GLUT and should be cross platform.
+User will be able to input the pieces in a minecraft style editor (though 3rd person).
+Resulting solution will be animated.
 
 License
 =======

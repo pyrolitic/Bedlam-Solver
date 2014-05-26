@@ -9,20 +9,20 @@
 
 using namespace std;
 
-void CSolver::addPiece(int w, int h, int d, const char* structure, char alias) {
-	pieces.push_back(list<CPiece*>());
+void Solver::addPiece(int w, int h, int d, const char* structure, char alias) {
+	pieces.push_back(list<Piece*>());
 	aliases.append(&alias, 1);
 
-	list<CPiece*>& images = *pieces.rbegin();
+	list<Piece*>& images = *pieces.rbegin();
 
 	//add the original
-	images.push_back(new CPiece(w, h, d, structure));
-	CPiece& p = **(images.rbegin());
+	images.push_back(new Piece(w, h, d, structure));
+	Piece& p = **(images.rbegin());
 
 	//this lambda function check if the image already exists.
 	//not efficient, but pieces are small enough not to matter too much
-	auto addImage = [&images] (CPiece* ptr) {
-		for(list<CPiece*>::iterator it = images.begin(); it != images.end(); it++) {
+	auto addImage = [&images] (Piece* ptr) {
+		for(list<Piece*>::iterator it = images.begin(); it != images.end(); it++) {
 			if (**it == *ptr) {
 				return;
 			}
@@ -33,11 +33,11 @@ void CSolver::addPiece(int w, int h, int d, const char* structure, char alias) {
 
 	//every permutation
 	for (int i = 0; i < 3; i++) {
-		CPiece* a = p.rotated(axis_x, i + 1);
+		Piece* a = p.rotated(axis_x, i + 1);
 		addImage(a);
 
 		for (int j = 0; j < 3; j++) {
-			CPiece* b = a->rotated(axis_y, j + 1);
+			Piece* b = a->rotated(axis_y, j + 1);
 			addImage(b);
 
 			for (int k = 0; k < 3; k++) {
@@ -49,7 +49,7 @@ void CSolver::addPiece(int w, int h, int d, const char* structure, char alias) {
 	cout << "added piece \'" << alias << "\', with " << images.size() << " images" << endl;
 }
 
-bool CSolver::solve(int maxSolutions) {
+bool Solver::solve(int maxSolutions) {
 	if (pieces.size() == 0) {
 		cout << "puzzle has no pieces" << endl;
 		return false;
@@ -57,7 +57,7 @@ bool CSolver::solve(int maxSolutions) {
 
 	//check if problem can be solved and count the number of nodes in the matrix
 	int piecesCover = 0;
-	for (vector<list<CPiece*> >::iterator it = pieces.begin(); it != pieces.end(); it++)
+	for (vector<list<Piece*> >::iterator it = pieces.begin(); it != pieces.end(); it++)
 		piecesCover += it->front()->volume();
 
 	if (piecesCover < spaces) {
@@ -84,11 +84,11 @@ bool CSolver::solve(int maxSolutions) {
 			mostId = i;
 		}
 
-	list<CPiece*>& chosen = pieces[mostId];
-	list<CPiece*>::iterator deleteStart = chosen.begin();
+	list<Piece*>& chosen = pieces[mostId];
+	list<Piece*>::iterator deleteStart = chosen.begin();
 	deleteStart++; //start with the second one
 
-	for (list<CPiece*>::iterator it = deleteStart; it != chosen.end(); it++)
+	for (list<Piece*>::iterator it = deleteStart; it != chosen.end(); it++)
 		delete *it; //avoid memory leak
 
 	chosen.erase(deleteStart, chosen.end());
@@ -96,11 +96,11 @@ bool CSolver::solve(int maxSolutions) {
 	//count the amount of nodes and of rows
 	//each row is a permutation of an image of a piece
 	int rows = 0;
-	for (vector<list<CPiece*> >::iterator it = pieces.begin(); it != pieces.end(); it++) {
+	for (vector<list<Piece*> >::iterator it = pieces.begin(); it != pieces.end(); it++) {
 		int pieceVol = it->front()->volume();
 		int locations = 0;
 
-		for (list<CPiece*>::iterator it2 = it->begin(); it2 != it->end(); it2++)
+		for (list<Piece*>::iterator it2 = it->begin(); it2 != it->end(); it2++)
 			locations += (width - (*it2)->width + 1) * (height - (*it2)->height + 1) * (depth - (*it2)->depth + 1);
 
 		rows += locations;
@@ -153,16 +153,16 @@ bool CSolver::solve(int maxSolutions) {
 	//create the sparse matrix row by row
 	int row = 0;
 
-	list<pair<int, list<CPiece*>::iterator> > its;
+	list<pair<int, list<Piece*>::iterator> > its;
 
 	for (int i = 0; i < pieces.size(); i++)
-		its.push_back(pair<int, list<CPiece*>::iterator>(i, pieces[i].begin()));
+		its.push_back(pair<int, list<Piece*>::iterator>(i, pieces[i].begin()));
 
-	list<pair<int, list<CPiece*>::iterator> >::iterator it = its.begin();
+	list<pair<int, list<Piece*>::iterator> >::iterator it = its.begin();
 
 	while (its.size() > 0) {
 		int pieceId = it->first;
-		CPiece& im = **(it->second);
+		Piece& im = **(it->second);
 
 		//locations
 		for (int z = 0; z <= depth - im.depth; z++)
@@ -259,7 +259,7 @@ bool CSolver::solve(int maxSolutions) {
 }
 
 //Knuth's Dancing Links
-void CSolver::search(int k) {
+void Solver::search(int k) {
 	if ((int) solutions.size() == maxSolutions) return;
 
 	//found a solution
@@ -318,7 +318,7 @@ void CSolver::search(int k) {
 }
 
 //early debug only, useless
-void CSolver::printSolutionsLine(int amount) const {
+void Solver::printSolutionsLine(int amount) const {
 	if (solutions.size() == 0) {
 		cout << "there are no solutions" << endl;
 		return;
@@ -330,7 +330,7 @@ void CSolver::printSolutionsLine(int amount) const {
 		cout << solutions[i] << endl;
 }
 
-void CSolver::printSolutionsHorizontalLevels(int amount) const {
+void Solver::printSolutionsHorizontalLevels(int amount) const {
 	if (solutions.size() == 0) {
 		cout << "there are no solutions" << endl;
 		return;
@@ -356,7 +356,7 @@ void CSolver::printSolutionsHorizontalLevels(int amount) const {
 	}
 }
 
-void CSolver::printSolutionsVerticalLevels(int perLine, int amount) const {
+void Solver::printSolutionsVerticalLevels(int perLine, int amount) const {
 	assert(perLine > 0);
 
 	if (solutions.size() == 0) {
