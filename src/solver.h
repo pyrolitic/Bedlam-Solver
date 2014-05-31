@@ -1,11 +1,12 @@
-#ifndef WORLD_H
-#define WORLD_H
+#ifndef SOLVER_H
+#define SOLVER_H
 
 #include "piece.h"
 #include "timer.h"
 
 #include <vector>
 #include <list>
+#include <limits>
 
 #include <iostream>
 #include <string>
@@ -13,22 +14,88 @@
 #define NON_FLAG_NODE_NAME '\0'
 
 class Solver {
+private:
+	class DensePiece{
+	public:
+		#define LOOKUP(p) ((p.x + p.y * size.x) + p.z * size.x * size.y)
+
+		DensePiece(const Piece& from){
+			assert(from.blocks.size() > 0);
+
+			//find the limits
+			vec3i lowest(std::numeric_limits<int>::max());
+			vec3i highest(std::numeric_limits<int>::min());
+
+			for (auto it = from.blocks.begin(); it != from.blocks.end(); it++){
+				lowest = minVec(lowest, *it);
+				highest = maxVec(highest, *it);
+			}
+
+			size = highest - lowest;
+			data = (bool*)malloc(size.x * size.y * size.z * sizeof(bool)); //maybe change this to std::bitset
+			memset(data, 0, size.x * size.y * size.z * sizeof(bool));
+
+			for (auto it = from.blocks.begin(); it != from.blocks.end(); it++){
+				vec3i p = *it - lowest;
+				data[LOOKUP(p)] = true;
+			}
+		}
+
+		~DensePiece(){
+			free(data);
+		}
+
+		#define ROTATED_ONCE_X(p) vec3i(p.x, p.z, size.y - p.y - 1)
+		#define ROTATED_ONCE_Y(p) vec3i(size.z - p.z - 1, p.y, p.x)
+		#define ROTATED_ONCE_Z(p) vec3i(p.z, p.y, size.x - p.x - 1)
+
+		#define ROATE_TWICE_X(p) vec3i(p.x, size.y - p.y - 1, size.z - p.z - 1)
+		#define ROATE_TWICE_Y(p) vec3i(size.x - p.x - 1, p.y, size.z - p.z - 1)
+		#define ROATE_TWICE_Z(p) vec3i(size.x - p.x - 1, size.y - p.y - 1, p.z)
+
+		#define ROTATE_THRICE_X(p) vec3i(p.x, size.z - p.z - 1, p.y)
+		#define ROTATE_THRICE_Y(p) vec3i(p.z, p.y, size.x - p.x - 1)
+		#define ROTATE_THRICE_Z(p) vec3i(p.y, size.x - p.x - 1, p.z)
+
+
+		bool query(vec3i at, int mode){
+			switch(mode){
+				case 0: return data[LOOKUP(at)];
+				case 1: return data[LOOKUP(ROTATED_ONCE_X(at))];
+				/*case 2: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];
+				case 3: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];
+				case 4: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];
+				case 5: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];
+				case 6: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];
+				case 7: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];*/
+			}
+			assert(false);
+			return false;
+		}
+
+	private:
+		vec3i size;
+		bool* data;
+	};
 public:
-	enum store_type {
-		sequential, interleaved
+	struct solution{
+		struct piecePosition{
+			int px, py, pz;
+			int side;
+		};
+
+		piecePosition* positions;
 	};
 
-	Solver(int w, int h, int d, store_type storeType = sequential) :
-			width(w), height(h), depth(d) {
-		sType = storeType;
-
+	Solver(vec3i worldSize, const std::list<Piece>& sparsePieces){
+		assert(worldSize > vec3i(0, 0, 0));
+		dimensions = worldSize;
 		nodes = NULL;
 		nodeAmount = 0;
 		nodeIt = 0;
 
-		spaces = width * height * depth;
-
-		currentSolution = (char*) malloc(w * h * d * sizeof(char));
+		spaces = dimensions.x * dimensions.y * dimensions.z;
+		currentSolution = (char*) malloc(spaces * sizeof(char));
 	}
 
 	~Solver() {
@@ -41,31 +108,12 @@ public:
 		free(currentSolution);
 	}
 
-	void addPiece(int w, int h, int d, const char* structure, char alias);
+	//void addPiece(int w, int h, int d, const char* structure, char alias);
 	bool solve(int maxSolutions);
-
-	void printSolutionsLine(int amount = 0) const;
-	void printSolutionsHorizontalLevels(int amount = 0) const;
-	void printSolutionsVerticalLevels(int perLine, int amount = 0) const;
-
-	std::vector<std::string> solutionsDeepCopy() const {
-		return std::vector<std::string>(solutions);
-	}
 
 private:
 	std::vector<std::list<Piece*> > pieces; //pieces with all their images
-	store_type sType;
-
-	std::string aliases;
-
-	struct position_info {
-		short x, y, z;
-	};
-
-	//dimensions of the world
-	int width;
-	int height;
-	int depth;
+	vec3i dimensions;
 
 	int maxSolutions;
 	char* currentSolution;
@@ -123,19 +171,18 @@ private:
 	}
 
 	int space(int x, int y, int z) const {
-		return (x + y * width) + z * width * height; //consistent with CShape addressing
+		return (x + y * dimensions.x) + z * dimensions.x * dimensions.y; //consistent with DensePiece addressing
 	}
 
-	position_info location(int cell) const {
-		position_info f;
+	vec3i location(int cell) const {
+		vec3i p;
 
-		int slice = cell % height * depth;
+		int slice = cell % dimensions.y * dimensions.z;
+		p.x = slice % dimensions.x;
+		p.y = slice / dimensions.x;
+		p.z = cell / (dimensions.x * dimensions.z);
 
-		f.x = slice % width;
-		f.y = slice / width;
-		f.z = cell / (height * depth);
-
-		return f;
+		return p;
 	}
 
 	//this is a stack of the chosen row to cover at each level of search(k)
@@ -163,4 +210,4 @@ private:
 	CTimer timer;
 };
 
-#endif /* WORLD_H */
+#endif

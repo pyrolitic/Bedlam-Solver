@@ -3,12 +3,13 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 
+#include <limits>
 #include <list>
 #include <string>
 
-#include <iostream>
-#include <cassert>
+#include "vec3.h"
 
 #define axis_x 0
 #define axis_y 1
@@ -20,199 +21,77 @@
 //============================================================================================
 class Piece {
 public:
-	struct block{
-		int x, y, z;
-		block(int x, int y, int z):
-			x(x), y(y), z(z) {}
-
-		block() {
-			x = y = z = 0; 
-		}
+	struct collisionResult{
+		std::list<vec3i>::iterator blockIt;
+		vec3 point;
+		int side; //(axis << 1) | (right == 1)
 	};
 
-	int width;
-	int height;
-	int depth;
-	std::list<block> blocks;
+	std::list<vec3i> blocks;
 
-	Piece(); //empty piece
-	Piece(int w, int h, int d, const char* data); //piece from (layer then row major) dense matrix
-	~Piece();
+	Piece(){}
+	~Piece(){}
 
-	//bool& data(int x, int y, int z);
-
-	Piece* copy();
-	//Piece* rotated(int axis, int turns);
-	int mass(); //the number of solid blocks
+	int mass(){
+		return blocks.size();
+	}
 
 	void insert(int x, int y, int z){
-		blocks.push_back(block(x, y, z));
+		blocks.emplace(blocks.begin(), x, y, z);
 	}
 
-	//TODO: fix; find a way to do this in at most O(n)
-	bool operator == (Piece& other) {
-		if (width != other.width or height != other.height or depth != other.depth) return false;
+	//checks for the closes collision between a ray (start and dir) and any of the blocks in this piece
+	//does not change $result if no collision happens
+	//O(n), TODO: make it better
+	bool collisionCheck(vec3 start, vec3 dir, collisionResult& result){
+		const int otherAxes[] = {1, 2, 0, 2, 0, 1}; //the axes inside the plane for each axis that's orthonormal to them
 
-		/*for (blocks::iterator it1 = blocks.begin(), other.blocks::iterator it2 = other.begin(); it1 != blocks.end() && it2 != other.blocks.end(); it1++, it2++){
-			block& a = *it1;
-			block& b = *it2;
-			if (a.x != b.x || a.y != b.y || a.z != b.z) return false;
-		}
+		auto blockIt = blocks.end();
+		float lowestT = std::numeric_limits<float>::max();
+		int collisionSide = 0;
 
-		return true;*/
+		for (int axis = 0; axis < 3; axis++){ //YZ, XZ, XY planes
+			for(auto it = blocks.begin(); it != blocks.end(); it++){
+				vec3i& b = *it;
+				int* blockData = (int*)(&b.x);
 
-		return false;
-	}
+				//check either side of each axis
+				for (int i = 0; i < 2; i++){
+					int v = blockData[axis] + i;
 
-	/*void print() {
-		std::cout << "-----" << std::endl;
-		for (int z = 0; z < depth; z++) {
-			for (int y = 0; y < height; y++) {
-				for (int x = 0; x < width; x++) {
-					if (data(x, y, z)) std::cout << 'x';
-					else std::cout << ' ';
-				}
-				std::cout << std::endl;
-			}
+					//distance to collision with plane (offset in the axis direction by $v units)
+					float t = (v - start.data[axis]) / dir.data[axis];
 
-			std::cout << "-----" << std::endl;
-		}
-	}*/
+					if (t > 0.0f && t != std::numeric_limits<float>::max()){ //sanity check
+						float h = v - start.data[axis];
+						vec3 p = start + dir * (h / dir.data[axis]);
+						
+						int a2 = otherAxes[axis * 2 + 0];
+						int a3 = otherAxes[axis * 2 + 1];
 
-	
-};
-//============================================================================================
-inline Piece::Piece() {
-	width = height = depth = 0;
-}
-
-inline Piece::Piece(int w, int h, int d, const char* data) :
-		width(w), height(h), depth(d) {
-
-	assert(strlen(data) == w * h * d);
-
-	for (int z = 0; z < depth; z++) {
-		for (int y = 0; y < height; y++) {
-			for (int x = 0; x < width; x++) {
-				if (data[(x + y * width) + z * width * height] != ' '){
-					blocks.push_back(block(x, y, z));
-				}
-			}
-		}
-	}
-}
-
-inline Piece::~Piece() {
-}
-//============================================================================================
-inline int Piece::mass() {
-	return blocks.size();
-}
-//============================================================================================
-inline Piece* Piece::copy() {
-	Piece* n = new Piece();
-	n->blocks.insert(n->blocks.begin(), blocks.begin(), blocks.end());
-	return n;
-}
-/*
-inline Piece* Piece::rotated(int axis, int turns) {
-	assert(turns > 0);
-	assert(turns < 4);
-
-	bool dimSwap = turns & 1;
-	Piece* n;
-
-	switch (axis) {
-	case axis_x:
-		n = dimSwap ? new Piece(width, depth, height) : new Piece(width, height, depth);
-
-		for (int z = 0; z < depth; z++)
-			for (int y = 0; y < height; y++)
-				for (int x = 0; x < width; x++) {
-					if (turns == 1) n->data(x, z, height - y - 1) = data(x, y, z);
-					else if (turns == 2) n->data(x, height - y - 1, depth - z - 1) = data(x, y, z);
-					else if (turns == 3) n->data(x, depth - z - 1, y) = data(x, y, z);
-				}
-		break;
-
-	case axis_y:
-		n = dimSwap ? new Piece(depth, height, width) : new Piece(width, height, depth);
-
-		for (int z = 0; z < depth; z++)
-			for (int y = 0; y < height; y++)
-				for (int x = 0; x < width; x++) {
-					if (turns == 1) n->data(depth - z - 1, y, x) = data(x, y, z);
-					else if (turns == 2) n->data(width - x - 1, y, depth - z - 1) = data(x, y, z);
-					else if (turns == 3) n->data(z, y, width - x - 1) = data(x, y, z);
-				}
-		break;
-
-	case axis_z:
-		n = dimSwap ? new Piece(height, width, depth) : new Piece(width, height, depth);
-
-		for (int z = 0; z < depth; z++)
-			for (int y = 0; y < height; y++)
-				for (int x = 0; x < width; x++) {
-					if (turns == 1) n->data(height - y - 1, x, z) = data(x, y, z);
-					else if (turns == 2) n->data(width - x - 1, height - y - 1, z) = data(x, y, z);
-					else if (turns == 3) n->data(y, width - x - 1, z) = data(x, y, z);
-				}
-		break;
-	}
-
-	return n;
-}*/
-//============================================================================================
-/*inline void Piece::checkAxialSymmetry() {
-
-	symmetry = 0x3F; //assume all is true
-
-	for (int axis = axis_x; axis <= axis_z; axis++) {
-
-		int a, b, c;
-		if (axis == axis_x) {
-			a = width;
-			b = height;
-			c = depth;
-		}
-
-		if (axis == axis_y) {
-			a = height;
-			b = depth;
-			c = width;
-		}
-
-		if (axis == axis_z) {
-			a = depth;
-			b = height;
-			c = width;
-		}
-
-		for (int i = 0; i < a; i++) {
-			bool last = (axis == axis_x) ? data(i, 0, 0) : (axis == axis_y) ? data(0, i, 0) : data(0, 0, i); //the first
-
-			//slice by slice
-			for (int j = 0; j < b; j++){
-				for (int k = 0; k < c; k++) {
-					bool& cell = (axis == axis_x) ? data(i, j, k) : (axis == axis_y) ? data(k, i, j) : data(k, j, i);
-
-					if (cell != last) symmetry &= ~(1 << (axis * 2)); //not turn symmetric, but there's still hope for flip symmetry
-
-					if (cell != data(i, height - i - 1, depth - k - 1)) {
-						symmetry &= ~(2 << (axis * 2));
-
-						//this implies not fully symmetric either, so skip to the end
-						k = c;
-						j = b;
-						i = a;
+						//check that the hit is within the plane
+						if (p.data[a2] >= blockData[a2] && p.data[a2] < blockData[a2] + 1 && p.data[a3] >= blockData[a3] && p.data[a3] < blockData[a3] + 1){
+							//hit
+							if (t < lowestT){
+								blockIt = it;
+								lowestT = t;
+								collisionSide = axis * 2 + i;
+							}
+						}
 					}
-
-					last = cell;
 				}
 			}
 		}
-	}
-}*/
 
-//============================================================================================
-#endif /* PIECE_H */
+		if (blockIt != blocks.end()){
+			result.blockIt = blockIt;
+			result.side = collisionSide;
+			result.point = start + dir * lowestT;
+			return true;
+		}
+
+		else return false;
+	}
+};
+
+#endif

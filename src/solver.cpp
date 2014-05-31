@@ -50,6 +50,7 @@ void Solver::addPiece(int w, int h, int d, const char* structure, char alias) {
 }
 
 bool Solver::solve(int maxSolutions) {
+	assert(maxSolutions)
 	if (pieces.size() == 0) {
 		cout << "puzzle has no pieces" << endl;
 		return false;
@@ -59,6 +60,8 @@ bool Solver::solve(int maxSolutions) {
 	int piecesCover = 0;
 	for (vector<list<Piece*> >::iterator it = pieces.begin(); it != pieces.end(); it++)
 		piecesCover += it->front()->volume();
+
+
 
 	if (piecesCover < spaces) {
 		cout << "the pieces have less material than the volume of the space" << endl;
@@ -292,13 +295,15 @@ void Solver::search(int k) {
 	header_node* col = NULL;
 	col = (header_node*) root.right;
 
-	/*
-	 //take the one with the least nodes in it
-	 int s = (int)0x0FFFFFFF;
-	 for (header_node* j = (header_node*) root.right; j != &root; j = (header_node*) j->right) {
-	 if (j->size < s) s = j->size;
-	 col = j;
-	 }*/
+	
+	//take the one with the least nodes in it
+	/*int s = (int)0x0FFFFFFF;
+	for (header_node* j = (header_node*) root.right; j != &root; j = (header_node*) j->right) {
+		if (j->size < s){
+			s = j->size;
+			col = j;
+		}
+	}*/
 
 	cover(col);
 

@@ -13,21 +13,15 @@ extern const uint8_t fontBitmapData[];
 
 class TextRender{
 public:
-	static void init(){
-		//font texture
-		tex = new Texture(GL_ALPHA8, GL_ALPHA, GL_UNSIGNED_BYTE, bitmapWidth, bitmapHeight, (void*)fontBitmapData, GL_NEAREST, GL_NEAREST);
-		printf("created font texture\n");
-	}
-
 	//translate and scale to taste beforehand
-	static void render(const char* text){
-		assert (tex);
-		assert (text);
-		
+	static void render(const char* text, int xOffset, int yOffset){
+		assert(tex);
+		assert(text);
+
 		glEnable(GL_BLEND);
 		glEnable(GL_TEXTURE_2D);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		
+
 		glActiveTexture(GL_TEXTURE0);
 		tex->bind();
 		
@@ -39,10 +33,10 @@ public:
 			int w = (*c & 0xF);
 			int h = (*c >> 4);
 		
-			glMultiTexCoord2f(GL_TEXTURE0, (w+0) / 16.0f, (h+0) / 16.0f); glVertex2i(x,                                    0);
-			glMultiTexCoord2f(GL_TEXTURE0, (w+1) / 16.0f, (h+0) / 16.0f); glVertex2i(x + bitmapGlyphWidth,                 0);
-			glMultiTexCoord2f(GL_TEXTURE0, (w+1) / 16.0f, (h+1) / 16.0f); glVertex2i(x + bitmapGlyphWidth, bitmapGlyphHeight);
-			glMultiTexCoord2f(GL_TEXTURE0, (w+0) / 16.0f, (h+1) / 16.0f); glVertex2i(x,                    bitmapGlyphHeight);
+			glMultiTexCoord2f(GL_TEXTURE0, (w+0) / 16.0f, (h+0) / 16.0f); glVertex2i(xOffset + x,                    yOffset);
+			glMultiTexCoord2f(GL_TEXTURE0, (w+1) / 16.0f, (h+0) / 16.0f); glVertex2i(xOffset + x + bitmapGlyphWidth, yOffset);
+			glMultiTexCoord2f(GL_TEXTURE0, (w+1) / 16.0f, (h+1) / 16.0f); glVertex2i(xOffset + x + bitmapGlyphWidth, yOffset + bitmapGlyphHeight);
+			glMultiTexCoord2f(GL_TEXTURE0, (w+0) / 16.0f, (h+1) / 16.0f); glVertex2i(xOffset + x,                    yOffset + bitmapGlyphHeight);
 		
 			x += bitmapGlyphWidth;
 			c++;
@@ -57,6 +51,12 @@ public:
 		assert (text);
 		if (w) *w = bitmapGlyphWidth * strlen(text);
 		if (h) *h = bitmapGlyphHeight;
+	}
+
+	static void init(){
+		//font texture
+		tex = new Texture(GL_ALPHA8, GL_ALPHA, GL_UNSIGNED_BYTE, bitmapWidth, bitmapHeight, (void*)fontBitmapData, GL_NEAREST, GL_NEAREST);
+		printf("created font texture\n");
 	}
 	
 private:

@@ -134,10 +134,12 @@ int main() {
 #include <GL/glu.h>
 
 #include "app.h"
+#include "frame.h"
 
 //statics
 GLuint Texture::boundTexture = 0;
 Texture* TextRender::tex = NULL;
+Texture* Frame::roundedBox = NULL;
 App App::app;
 
 //sadly freeglut requires plain function pointers (with no class context) for callbacks, so it's a bit messy

@@ -1,14 +1,23 @@
 #ifndef BUTTON_H
 #define BUTTON_H
 
-class Button{
-public:
-	Button(int x, int y, char* text, bool toggleable = false) : text(text) {
-		px = x;
-		py = y;
+#include <cstdint>
 
-		TextRender::metrics(text, &width, nullptr);
-		width += 2 * BUTTON_TEXT_MARGIN;
+#include <string>
+
+#include <GL/glew.h>
+
+#include "frame.h"
+#include "text_render.h"
+
+class Button : public Frame{
+public:
+	#define BUTTON_HEIGHT 30 //pixels
+
+	Button(int x, int y, char* text, bool toggleable = false) : Frame(x, y, 0, 0), text(text) {
+		int textWidth;
+		TextRender::metrics(text, &textWidth, &textHeight);
+		Frame::setSize(textWidth, std::max(BUTTON_HEIGHT - 2 * FRAME_ROUNDED_RADIUS, textHeight));
 
 		value = false;
 		toggle = toggleable;
@@ -17,93 +26,32 @@ public:
 	~Button(){
 	}
 
-	void setText(char* newText){
-		text.assign(newText);
-	}
-
-	void draw(){
-		glPushMatrix();
-		glEnable(GL_BLEND);
-		glEnable(GL_TEXTURE_2D);
-		glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-		
-		roundedBox->bind();
-		glBegin(GL_QUADS);
-	
-		const uint8_t* c = (const uint8_t*) text;
-		int x = 0;
-		while (*c){
-			int w = (*c & 0xF);
-			int h = (*c >> 4);
-		
-			glTexCoord2f(GL_TEXTURE0, (w+0) / 16.0f, (h+0) / 16.0f); glVertex2i(x,                                    0);
-			glTexCoord2f(GL_TEXTURE0, (w+1) / 16.0f, (h+0) / 16.0f); glVertex2i(x + bitmapGlyphWidth,                 0);
-			glTexCoord2f(GL_TEXTURE0, (w+1) / 16.0f, (h+1) / 16.0f); glVertex2i(x + bitmapGlyphWidth, bitmapGlyphHeight);
-			glTexCoord2f(GL_TEXTURE0, (w+0) / 16.0f, (h+1) / 16.0f); glVertex2i(x,                    bitmapGlyphHeight);
-		
-			x += bitmapGlyphWidth;
-			c++;
-		}
-	
-		glEnd();
-		Texture:unBind();
-		glDisable(GL_BLEND);
-	}
-
-	bool collides(int x, int y){
-		return (x >= px && y >= py && x < px + width && y < py + BUTTON_HEIGHT);
-	}
-
-	string getText(){
+	std::string getText(){
 		return text; //copy not reference
 	}
 
-private:
-	#define BUTTON_TEXT_MARGIN 10 //pixels
-	#define BUTTON_HEIGHT 30 //pixels
+	void setText(char* newText){
+		text.assign(newText);
+		int textWidth;
+		TextRender::metrics(text.c_str(), &textWidth, &textHeight);
+		Frame::setSize(textWidth, std::max(BUTTON_HEIGHT, textHeight));
+	}
 
-	int px, py;
-	string text;
-	int width;
+	void draw(){//float tr, float tg, float tb, float fr, float fg, float fb){
+		Frame::draw();//fr, fg, fb); //draw frame underneath
+		glColor4f(1.0f, 0.5f, 0.5f, 1.0f);//glColor4f(tr, tg, tb, 1.0f);
+		TextRender::render(text.c_str(), px + FRAME_ROUNDED_RADIUS, py + FRAME_ROUNDED_RADIUS + Frame::height / 2 - textHeight / 2); //overlay text, centered
+	}
+
+	void addChild(UIElem* child){
+		printf("warning: trying to add child to a button\n");
+	}
+
+private:
+	std::string text;
+	int textHeight;
 	bool value;
 	bool toggle;
-
-	static Texture* roundedBox;
-
-	static void generateTexture(){
-		/*
-		+------------------+
-		|       00111111111|
-		|    00000111111111|
-		|   00000x111111111|
-		|    00000111111111|
-		|       00111111111|
-		+------------------+
-		blank is (0, 0, 0, 0), the rest is (1, 1, 1, 1)
-		0 is a semicircle, 1 is a rectangle
-		*/
-		const int size = 256;
-		uint8_t* buffer = (uint8_t*) malloc(size * size * 4);
-		memset(buffer, 255, size * size * 4);
-
-		//left half, semicircle
-		for (int j = 0; j < size; j++){
-			float y = 0.5f - (float) j / size;
-			for (int i = 0; i < size / 2; i++){
-				float x = 0.5f - (float)i / size;
-
-				float dist = sqrt(y * y + x * x);
-				uint8_t val = (dist > 0.5f)? 0 : 255;
-
-				buffer[(i + j * size) * 3 + 0] = val;
-				buffer[(i + j * size) * 3 + 1] = val;
-				buffer[(i + j * size) * 3 + 2] = val;
-				buffer[(i + j * size) * 3 + 3] = val;
-			}
-		}
-
-		roundedBox = new Texture(GL_RGBA, GL_RGBA, GL_UNSIGNED_BYTE, size, size, buffer, GL_LINEAR, GL_LINEAR);
-	}
 };
 
 #endif

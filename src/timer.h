@@ -1,23 +1,16 @@
 #ifndef TIMER_H
 #define TIMER_H
 
-#if defined(__linux__)
-#define PLATFORM_LINUX
+#if (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)))
 
-#elif defined(_WIN32) //also works on 64 bit windows
-#define PLATFORM_WINDOWS 1
-
-#elif defined(__APPLE__) and defined(__MACH__)
-#define PLATFROM_OSX 1
-
-#endif
-
-
-#if defined(PLATFROM_LINUX) or defined(PLATFROM_OSX)
+#define UNIX_LIKE
 #include <sys/time.h>
 
-#elif defined(PLATFROM_WINDOWS)
+#elif defined(_WIN32)
 #include <windows.h>
+
+#else
+#error Platform not supported
 
 #endif
 
@@ -29,11 +22,11 @@ public:
 	void reset();
 
 private:
-#if defined(PLATFROM_LINUX) or defined(PLATFROM_OSX)
+#ifdef UNIX_LIKE
 	timeval start;
 	timeval last;
 
-#elif defined(PLATFROM_WINDOWS)
+#else
 	__int64 start;
 	__int64 last;
 
@@ -43,7 +36,7 @@ private:
 };
 
 inline CTimer::CTimer() {
-#if defined(PLATFROM_WINDOWS)
+#ifndef UNIX_LIKE //windows here
 	QueryPerformanceFrequency(&freq);
 #endif
 
@@ -51,11 +44,11 @@ inline CTimer::CTimer() {
 }
 
 inline void CTimer::reset() {
-#if defined(PLATFROM_LINUX) or defined(PLATFROM_OSX)
+#ifdef UNIX_LIKE
 	gettimeofday(&start, NULL);
 	last = start;
 
-#elif defined(PLATFROM_WINDOWS)
+#else
 	QueryPerformanceCounter((LARGE_INTEGER*)&start);
 	start /= freq;
 	last = start;
@@ -65,12 +58,12 @@ inline void CTimer::reset() {
 }
 
 inline float CTimer::elapsedMilli() {
-#if defined(PLATFROM_LINUX) or defined(PLATFROM_OSX)
+#ifdef UNIX_LIKE
 	timeval now;
 	gettimeofday(&now, NULL);
 	return (float) (now.tv_sec - start.tv_sec) * 1000 + (float) (now.tv_usec - start.tv_usec) / 1000;
 
-#elif defined(PLATFROM_WINDOWS)
+#else
 	__float64 now;
 	QueryPerformanceCounter((LARGE_INTEGER*)&now);
 	return (float)(now - start) / freq;
@@ -79,13 +72,13 @@ inline float CTimer::elapsedMilli() {
 }
 
 inline float CTimer::sinceLastMilli() {
-#if defined(PLATFROM_LINUX) or defined(PLATFROM_OSX)
+#ifdef UNIX_LIKE
 	timeval now;
 	gettimeofday(&now, NULL);
 	last = now;
 	return (float) (now.tv_sec - last.tv_sec) * 1000 + (float) (now.tv_usec - last.tv_usec) / 1000;
 
-#elif defined(PLATFROM_WINDOWS)
+#else
 	__float64 now;
 	QueryPerformanceCounter((LARGE_INTEGER*)&now);
 	last = now;
