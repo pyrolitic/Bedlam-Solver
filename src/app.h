@@ -23,6 +23,7 @@
 #include "button.h"
 #include "counter.h"
 
+#include "solver.h"
 #include "piece.h"
 #include "texture.h"
 #include "text_render.h"
@@ -31,7 +32,12 @@
 class App{
 public:
 	App(){}
-	~App(){}
+	~App(){
+		delete editorElems;
+		delete listingStateElems;
+		delete solvingElems;
+		delete solutionElems;
+	}
 
 	App(const App&); //nope
 	void operator =(const App&); //nope
@@ -86,7 +92,7 @@ public:
 		int copies;
 
 		listPiece() : Frame(0, 0, 200, 60){
-			UIElem::addChild(new Button(0, 20, (char*)"edit", ));
+			UIElem::addChild(new Button(0, 20, (char*)"edit"));
 			UIElem::addChild(new Button(30, 20, (char*)"delete"));
 			UIElem::addChild(new Counter(50, 20, 0, 10));
 		}
@@ -102,7 +108,7 @@ public:
 	};
 
 	listSolvingOptions* solvingOptionsFrame;
-	UIElem listingStateElems; //container of the above
+	UIElem* listingStateElems; //container of the above
 
 	//=====================================
 	//Piece editing state
@@ -114,14 +120,15 @@ public:
 	bool checkRayCollision; //wether to check for block collision (if the mouse moved or if a block was laid or deleted)
 
 	//keep results of the last collision, so that the collision check won't be done every frame
-	collisionResult lastCollision;
+	Piece::collisionResult lastCollision;
+	vec3i extrudedBlock;
 	bool editorCollision;
 
 	struct pieceChange{
 		bool removal;
-		Piece::block at;
+		vec3i at;
 
-		pieceChange(bool removal, Piece::block at): 
+		pieceChange(bool removal, vec3i at): 
 			removal(removal), at(at) {}
 	};
 
@@ -130,7 +137,7 @@ public:
 
 	Frame* editorFrame;
 	Button* discardButton, * saveButton, * undoButton;
-	UIElem editorElems;
+	UIElem* editorElems;
 
 	//=====================================
 	//Solving state
@@ -150,14 +157,14 @@ public:
 	};
 
 	Frame* solvingFrame;
-	UIElem solvingElems;
+	UIElem* solvingElems;
 
 	//=====================================
 	//Solution animation state
 	//=====================================
-	solution* animatedSolution;
+	Solver::solution* animatedSolution;
 	Button* nextPieceButton, * resetButton;
-	UIElem solutionElems;
+	UIElem* solutionElems;
 
 	void init();
 

@@ -46,6 +46,7 @@ public:
 	virtual void update(int dt){}
 
 	virtual void draw(){
+		printf("UIElem::draw()");
 		for (auto it = children.begin(); it != children.end(); it++){
 			(*it)->draw();
 		}

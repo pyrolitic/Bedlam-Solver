@@ -95,16 +95,23 @@ void App::init(){
 	editingLayer = 0;
 	blocksLaid = 0;
 
+	//build UI
+	pieceListFrame = new ScrollingFrame(10, 10, 500);
+	listingStateElems = new UIElem();
+	listingStateElems->addChild(pieceListFrame);
 
-	discardButton = new Button(600, 10, (char*)"discard");
-	saveButton = new Button(600, 70, (char*)"save");
-	undoButton = new Button(600, 120, (char*)"undo");
+	editorFrame = new Frame(600, 10, 180, 50);
+	discardButton = new Button(0, 0, (char*)"discard");
+	saveButton = new Button(70, 0, (char*)"save");
+	undoButton = new Button(120, 0, (char*)"undo");
 
-	editorUIElems.push_back(discardButton);
-	editorUIElems.push_back(saveButton);
-	editorUIElems.push_back(undoButton);
+	editorFrame->addChild(discardButton);
+	editorFrame->addChild(saveButton);
+	editorFrame->addChild(undoButton);
 
-
+	editorElems = new UIElem();
+	editorElems->addChild(editorFrame);
+	
 	state = STATE_EDIT_PIECE; //temporary
 
 	//3d camera
@@ -282,13 +289,14 @@ void App::update(){
 			}
 
 			if (checkButton(GLUT_LEFT_BUTTON)){
+				
 				printf("adding block at (%d %d %d)\n", extrudedBlock.x, extrudedBlock.y, extrudedBlock.z);
 				editedPiece->blocks.push_back(extrudedBlock);
 			}
 
-			else if (checkButton(GLUT_RIGHT_BUTTON) && collidedBlockIt != editedPiece->blocks.end()){
-				printf("removing block at (%d %d %d)\n", collidedBlockIt->x, collidedBlockIt->y, collidedBlockIt->z);
-				editedPiece->blocks.erase(collidedBlockIt);
+			else if (checkButton(GLUT_RIGHT_BUTTON) && lastCollision.blockIt != editedPiece->blocks.end()){
+				printf("removing block at (%d %d %d)\n", lastCollision.blockIt->x, lastCollision.blockIt->y, lastCollision.blockIt->z);
+				editedPiece->blocks.erase(lastCollision.blockIt);
 			}
 
 			int gridCenterX, gridCenterZ;
@@ -296,7 +304,7 @@ void App::update(){
 			if (editorCollision){
 				//offset the block from its source depending on which side it's being extruded coming from
 				extrudedBlock = *(lastCollision.blockIt);
-				((int*)&extrudedBlock)[lastCollision.side] += (i == 0)? -1 : 1;
+				extrudedBlock.data[lastCollision.side >> 1] += ((lastCollision.side & 1) == 0)? -1 : 1;
 			}
 			else{
 				//no collision, so intersect mouse ray with the grid
@@ -348,14 +356,14 @@ void App::update(){
 			glDisable(GL_TEXTURE_2D);
 
 
-			//draw current piece, pushing it a little back
+			//draw current piece, pushing the solid planes it a little back so that the lines will show, even at acute angles
 			glEnable(GL_POLYGON_OFFSET_FILL);
 			glPolygonOffset(1.0f, 1.0f);
 
 			glBegin(GL_QUADS);
 			for (auto it = editedPiece->blocks.begin(); it != editedPiece->blocks.end(); it++){
-				Piece::block& b = *it;
-				if (it == collidedBlockIt) glColor4f(0.5f, 0.9f, 0.5f, 1.0f);
+				vec3i& b = *it;
+				if (it == lastCollision.blockIt) glColor4f(0.5f, 0.9f, 0.5f, 1.0f);
 				else glColor4f(0.5f, 0.5f, 0.9f, 1.0f);
 				drawCube(b.x, b.y, b.z);
 			}
@@ -365,8 +373,8 @@ void App::update(){
 			glLineWidth(3.0f);
 			glBegin(GL_LINES);
 			for (auto it = editedPiece->blocks.begin(); it != editedPiece->blocks.end(); it++){
-				Piece::block& b = *it;
-				if (it == collidedBlockIt) glColor4f(0.7f, 0.9f, 0.7f, 1.0f);
+				vec3i& b = *it;
+				if (it == lastCollision.blockIt) glColor4f(0.7f, 0.9f, 0.7f, 1.0f);
 				else glColor4f(0.7f, 0.7f, 0.9f, 1.0f);
 				drawCubeOutlines(b.x, b.y, b.z);
 			}
@@ -428,21 +436,22 @@ void App::update(){
 
 	switch(state){
 		case STATE_LIST_PIECES: {
+			listingStateElems->draw();
 			break;
 		}
 
 		case STATE_EDIT_PIECE: {
-			for (auto it = editorUIElems.begin(); it != editorUIElems.end(); it++){
-				(*it)->draw();
-			}
+			editorElems->draw();
 			break;
 		}
 
 		case STATE_SOLVE: {
+			solvingElems->draw();
 			break;
 		}
 
-		case STATE_SHOW_RESULT: {
+		case STATE_SHOW_RESULT:{
+			solutionElems->draw(); 
 			break;
 		}
 	}

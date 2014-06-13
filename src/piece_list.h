@@ -6,7 +6,7 @@
 #include <cassert>
 
 #include <limits>
-#include <unordered_map>
+#include <list>
 #include <string>
 
 #include "vec3.h"
@@ -22,18 +22,12 @@
 class Piece {
 public:
 	struct collisionResult{
-		vec3i block;
-		vec3f point;
+		std::list<vec3i>::iterator blockIt;
+		vec3 point;
 		int side; //(axis << 1) | (right == 1)
 	};
 
-	struct vec3iHasher{
-		size_t operator() (const vec3i& v) const{
-			return v.z ^ v.y ^ v.x; //TODO: any good?
-		}
-	};
-
-	std::unordered_map<vec3i, int> blocks;
+	std::list<vec3i> blocks;
 
 	Piece(){}
 	~Piece(){}
@@ -42,16 +36,8 @@ public:
 		return blocks.size();
 	}
 
-	void insert(vec3i at){
-		blocks[at] = 0;
-	}
-
-	bool query(vec3i at){
-		return blocks.find(at) != blocks.end();
-	}
-
-	void remove(vec3i at){
-		blocks.erase(at);
+	void insert(int x, int y, int z){
+		blocks.emplace(blocks.begin(), x, y, z);
 	}
 
 	//checks for the closes collision between a ray (start and dir) and any of the blocks in this piece
@@ -60,13 +46,13 @@ public:
 	bool collisionCheck(vec3 start, vec3 dir, collisionResult& result){
 		const int otherAxes[] = {1, 2, 0, 2, 0, 1}; //the axes inside the plane for each axis that's orthonormal to them
 
-		vec3i collisionBlock;
+		auto blockIt = blocks.end();
 		float lowestT = std::numeric_limits<float>::max();
 		int collisionSide = 0;
 
 		for (int axis = 0; axis < 3; axis++){ //YZ, XZ, XY planes
-			for(auto pairs : blocks){
-				const vec3i& b = pairs.first;
+			for(auto it = blocks.begin(); it != blocks.end(); it++){
+				vec3i& b = *it;
 				int* blockData = (int*)(&b.x);
 
 				//check either side of each axis
@@ -87,7 +73,7 @@ public:
 						if (p.data[a2] >= blockData[a2] && p.data[a2] < blockData[a2] + 1 && p.data[a3] >= blockData[a3] && p.data[a3] < blockData[a3] + 1){
 							//hit
 							if (t < lowestT){
-								collisionBlock = b;
+								blockIt = it;
 								lowestT = t;
 								collisionSide = axis * 2 + i;
 							}
@@ -97,8 +83,8 @@ public:
 			}
 		}
 
-		if (lowestT < std::numeric_limits<float>::max()){
-			result.block = collisionBlock;
+		if (blockIt != blocks.end()){
+			result.blockIt = blockIt;
 			result.side = collisionSide;
 			result.point = start + dir * lowestT;
 			return true;

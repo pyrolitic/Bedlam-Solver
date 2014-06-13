@@ -26,17 +26,18 @@ private:
 			vec3i lowest(std::numeric_limits<int>::max());
 			vec3i highest(std::numeric_limits<int>::min());
 
-			for (auto it = from.blocks.begin(); it != from.blocks.end(); it++){
-				lowest = minVec(lowest, *it);
-				highest = maxVec(highest, *it);
+			for (auto pairs : from.blocks){
+				const vec3i& v = pairs.first;
+				lowest = minVec(lowest, v);
+				highest = maxVec(highest, v);
 			}
 
 			size = highest - lowest;
 			data = (bool*)malloc(size.x * size.y * size.z * sizeof(bool)); //maybe change this to std::bitset
 			memset(data, 0, size.x * size.y * size.z * sizeof(bool));
 
-			for (auto it = from.blocks.begin(); it != from.blocks.end(); it++){
-				vec3i p = *it - lowest;
+			for (auto pairs : from.blocks){
+				vec3i p = pairs.first - lowest;
 				data[LOOKUP(p)] = true;
 			}
 		}

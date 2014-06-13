@@ -5,6 +5,8 @@
 #include <sstream>
 #include <cstdio>
 
+#include <functional>
+
 class vec2;
 class quat;
 
@@ -227,5 +229,31 @@ typedef vec3Templated<float> vec3;
 typedef vec3Templated<float> vec3f;
 typedef vec3Templated<int> vec3i;
 
+//make vec3i it hashable
+/*
+namespace std {
+	template <> struct hash<vec3i>{
+		#define ROTATE_LEFT(x, amount) ((x << amount) | (x >> (sizeof(x) * 8 - amount)))
+		std::size_t operator()(const vec3i& k) const{
+			//x = 31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00 
+			//y = 21 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00 31 30 29 28 27 26 25 24 23 22 
+			//z = 10 09 08 07 06 05 04 03 02 01 00 31 30 29 28 27 26 25 24 23 22 31 20 19 18 17 16 15 14 13 12 11 
+			using std::hash;
+			return hash<int>()((k.x) ^ ROTATE_LEFT(k.y, 10) ^ ROTATE_LEFT(k.z, 21));
+		}
+	};
+} */
+namespace std {
+	template <typename T> struct hash<vec3Templated<T>>{
+		#define ROTATE_LEFT(x, amount) ((x << amount) | (x >> (sizeof(x) * 8 - amount)))
+		std::size_t operator()(const vec3Templated<T>& k) const{
+			//x = 31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00 
+			//y = 21 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00 31 30 29 28 27 26 25 24 23 22 
+			//z = 10 09 08 07 06 05 04 03 02 01 00 31 30 29 28 27 26 25 24 23 22 31 20 19 18 17 16 15 14 13 12 11 
+			using std::hash;
+			return hash<T>()((k.x) ^ ROTATE_LEFT(k.y, 10) ^ ROTATE_LEFT(k.z, 21));
+		}
+	};
+}
 #endif
 

@@ -6,4 +6,4 @@ LIBS="-lGLEW -lGLU -lglut -lGL -lm -pthread"
 GLEW_HEADERS="/usr/include/GL" #"$HOME/C/glew_college"
 GLEW_LIBS="/usr/lib"
 
-$CXX $CXXFLAGS $SOURCES $LIBS -o $OUT -I"$GLEW_HEADER" -L"$GLEW_LIBS" -g3 -O
+$CXX $CXXFLAGS $SOURCES $LIBS -o $OUT -I"$GLEW_HEADER" -L"$GLEW_LIBS" -g3 -O -ferror-limit=3
