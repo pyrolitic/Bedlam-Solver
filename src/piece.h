@@ -27,13 +27,8 @@ public:
 		int side; //(axis << 1) | (right == 1)
 	};
 
-	struct vec3iHasher{
-		size_t operator() (const vec3i& v) const{
-			return v.z ^ v.y ^ v.x; //TODO: any good?
-		}
-	};
-
 	std::unordered_map<vec3i, int> blocks;
+	int copies;
 
 	Piece(){}
 	~Piece(){}

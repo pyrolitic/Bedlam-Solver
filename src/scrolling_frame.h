@@ -5,17 +5,14 @@
 
 #include <string>
 
-#include <GL/glew.h>
-
 #include "frame.h"
 #include "ui_elem.h"
-#include "text_render.h"
 
 class ScrollingFrame : public Frame{
 public:
-	#define SCROLLING_FRAME_ELMENT_SEPARATION 20
+	#define SCROLLING_FRAME_ELMENT_SEPARATION FRAME_ROUNDED_RADIUS
 
-	ScrollingFrame(int x, int y, int height) : Frame(x, y, 0, height){
+	ScrollingFrame(vec2i pos, int height) : Frame(pos, vec2i(0, height)){
 	}
 
 	virtual ~ScrollingFrame() {}
@@ -27,23 +24,16 @@ public:
 
 		for (auto it = UIElem::children.begin(); it != UIElem::children.end(); it++){
 			UIElem* elem = *it;
-			elem->setPosition(0, (int)-scrollingPosition + contentHeight);
+			elem->setPosition(pos + vec2i(FRAME_ROUNDED_RADIUS, FRAME_ROUNDED_RADIUS + (int)scrollingPosition + contentHeight));
 
-			int w = elem->getWidth();
-			int h = elem->getHeight();
+			vec2i dim = elem->getSize();
 
-			if (w > maxWidth) maxWidth = w;
-			contentHeight += h;
+			if (dim.x > maxWidth) maxWidth = dim.x;
+			contentHeight += dim.y;
 			if (std::next(it) != UIElem::children.end()) contentHeight += SCROLLING_FRAME_ELMENT_SEPARATION;
 		}
 
-		setSize(maxWidth, height); //don't make longer than before
-	}
-
-	void scroll(int delta){
-		scrollingPosition += delta;
-		if (scrollingPosition < 0.0f) scrollingPosition = 0.0f;
-		if (scrollingPosition > contentHeight - height) scrollingPosition = contentHeight - height;
+		setSize(vec2i(maxWidth + 2 * FRAME_ROUNDED_RADIUS, size.y)); //don't make it longer than before
 	}
 
 	virtual void draw(){//float r, float g, float b){
@@ -51,15 +41,20 @@ public:
 		UIElem::draw();
 	}
 
-	virtual UIElem* collides(int x, int y){
-		return Frame::collides(x, y);
+	virtual UIElem* collides(vec2i at) const{
+		return Frame::collides(at);
 	}
 
 protected:
+	bool privateOnWheel(vec2i at, int delta){
+		scrollingPosition += delta * 10;
+		if (scrollingPosition > 0.0f) scrollingPosition = 0.0f;
+		//if (scrollingPosition < contentHeight - size.y) scrollingPosition = contentHeight - size.y;
+		return true;
+	}
+
 	float scrollingPosition;
-	int width, height;
 	int contentHeight;
-	static Texture* roundedBox;
 };
 
 #endif

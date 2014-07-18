@@ -11,6 +11,8 @@
 
 extern const uint8_t fontBitmapData[];
 
+//TODO: revamp to add atalses, support for fonts
+
 class TextRender{
 public:
 	//translate and scale to taste beforehand
@@ -53,10 +55,45 @@ public:
 		if (h) *h = bitmapGlyphHeight;
 	}
 
+	static void metricsToChar(const char* text, const char* upTo, int* w, int *h){
+		assert(text);
+		assert(upTo >= text);
+		assert(upTo - text <= strlen(text));
+		int len = upTo - text;
+		if (w) *w = len * bitmapGlyphWidth;
+		if (h) *h = bitmapGlyphHeight;
+	}
+
+	//Returns the index of the character at $spatialOffset, or -1 if it's past the end of the text
+	//If >= 0 is returned, $symbolBegin and $nextSymbolBegin are set, respectively, 
+	//to the spatial start of the current character and the spatial start of the next character
+	//Otherwise, $symbolBegin is set to the start of what would be the next character,
+	//and $nextSymbolBegin is unaffected
+	static int findSymbolAt(const char* text, int spatialOffset, int* symbolBegin, int* nextSymbolBegin){
+		assert(text);
+		if (spatialOffset < 0) spatialOffset = 0;
+		int textLen = strlen(text) * bitmapGlyphWidth;
+
+		if (spatialOffset >= textLen){
+			if (symbolBegin) *symbolBegin = textLen;
+			return -1;
+		}
+
+		int charId = spatialOffset / bitmapGlyphWidth;
+		if (symbolBegin) *symbolBegin = charId * bitmapGlyphWidth;
+		if (nextSymbolBegin) *nextSymbolBegin = (charId + 1) * bitmapGlyphWidth;
+		return charId;
+	}
+
 	static void init(){
 		//font texture
 		tex = new Texture(GL_ALPHA8, GL_ALPHA, GL_UNSIGNED_BYTE, bitmapWidth, bitmapHeight, (void*)fontBitmapData, GL_NEAREST, GL_NEAREST);
 		printf("created font texture\n");
+	}
+
+	//terrible hack, but no way to avoid it until fonts are in
+	static int getReasonableHeight(){
+		return bitmapGlyphHeight;
 	}
 	
 private:

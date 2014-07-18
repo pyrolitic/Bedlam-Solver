@@ -6,35 +6,27 @@
 
 #include <string>
 
+#ifndef TEST_BUILD //remove all references to gl when doing unit tests
 #include <GL/glew.h>
 
-#include "ui_elem.h"
 #include "text_render.h"
+#endif
+
+#include "vec2.h"
+#include "ui_elem.h"
+
 
 class Frame : public UIElem{
 public:
 	#define FRAME_ROUNDED_RADIUS 7 //pixels
 
-	Frame(int x, int y, int w, int h){
-		setPosition(x, y);
-		setSize(w, h);
+	Frame(vec2i pos, vec2i size) : UIElem(pos){
+		setSize(size);
 	}
 
 	virtual ~Frame() {}
 
-	virtual void setSize(int w, int h){
-		width = w;
-		height = h;
-	}
-
-	virtual int getWidth(){ 
-		return width + 2 * FRAME_ROUNDED_RADIUS; 
-	}
-
-	virtual int getHeight(){
-		return height + 2 * FRAME_ROUNDED_RADIUS;
-	}
-
+#ifndef TEST_BUILD
 	virtual void draw(){//float r, float g, float b){
 		assert(roundedBox);
 
@@ -45,6 +37,12 @@ public:
 		roundedBox->bind();
 		glBegin(GL_QUADS);
 		glColor4f(r, g, b, a);
+
+		//TODO: refactor below
+		int px = pos.x;
+		int py = pos.y;
+		int width = size.x - 2 * FRAME_ROUNDED_RADIUS;
+		int height = size.y - 2 * FRAME_ROUNDED_RADIUS;
 
 		//top left corner
 		glMultiTexCoord2f(GL_TEXTURE0, 0.0f, 0.0f); glVertex2i(px,                        py);
@@ -89,14 +87,28 @@ public:
 
 		UIElem::draw();
 	}
+#endif
 
-	virtual UIElem* collides(int x, int y){
-		UIElem* child = UIElem::collides(x, y);
-		if (child) return child;
-		else if (x >= px && y >= py && x < px + width + FRAME_ROUNDED_RADIUS * 2 && y < py + height + FRAME_ROUNDED_RADIUS * 2) return this; //TODO: rounded edges pass-through
-		else return nullptr;
+	virtual UIElem* collides(vec2i at) const{
+		UIElem* child = UIElem::collides(at);
+		if (child){
+			return child;
+		}
+		else if (at >= pos && at < pos + size){
+			return (UIElem*)this; //TODO: rounded edges pass-through
+		}
+		else{
+			return nullptr;
+		}
 	}
 
+	virtual void addChild(UIElem* child){
+		child->setParent(this);
+		children.emplace_back(child);
+		child->setPosition(pos + child->getPosition() + vec2i(FRAME_ROUNDED_RADIUS, FRAME_ROUNDED_RADIUS)); //place inside $this
+	}
+
+#ifndef TEST_BUILD
 	static void init(){
 		/*
 		+------------------+
@@ -127,11 +139,18 @@ public:
 		}
 
 		roundedBox = new Texture(GL_ALPHA8, GL_ALPHA, GL_UNSIGNED_BYTE, w, h, buffer, GL_LINEAR, GL_LINEAR);
+		free(buffer);
 	}
 
+	static void end(){
+		delete roundedBox;
+	}
+#endif
+
 protected:
-	int width, height;
+#ifndef TEST_BUILD
 	static Texture* roundedBox;
+#endif
 };
 
 #endif

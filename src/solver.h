@@ -1,23 +1,25 @@
 #ifndef SOLVER_H
 #define SOLVER_H
 
-#include "piece.h"
-#include "timer.h"
+#include <cstring>
 
 #include <vector>
 #include <list>
 #include <limits>
-
-#include <iostream>
 #include <string>
+#include <mutex>
+#include <thread>
 
-#define NON_FLAG_NODE_NAME '\0'
+#include "piece.h"
+
+//Spawning a solver comes with the assumption that the sum of the number of 
+//blocks in each piece (copies considered) is equal to the number of spaces in the world
 
 class Solver {
 private:
 	class DensePiece{
 	public:
-		#define LOOKUP(p) ((p.x + p.y * size.x) + p.z * size.x * size.y)
+		#define LOOKUP(p, s) ((p.x + p.y * s.x) + p.z * s.x * s.y)
 
 		DensePiece(const Piece& from){
 			assert(from.blocks.size() > 0);
@@ -33,96 +35,180 @@ private:
 			}
 
 			size = highest - lowest;
-			data = (bool*)malloc(size.x * size.y * size.z * sizeof(bool)); //maybe change this to std::bitset
-			memset(data, 0, size.x * size.y * size.z * sizeof(bool));
+			data = (uint8_t*) malloc(size.x * size.y * size.z * sizeof(uint8_t)); //maybe change this to std::bitset
+			memset(data, 0, size.x * size.y * size.z * sizeof(uint8_t));
 
 			for (auto pairs : from.blocks){
 				vec3i p = pairs.first - lowest;
-				data[LOOKUP(p)] = true;
+				data[LOOKUP(p, size)] = 1;
 			}
+
+			orientation = 0; //original
+		}
+
+		//these better be optimized a bit when fully expanded
+		#define ROTATED_ONCE_X(p) vec3i(p.x, p.z, size.y - p.y - 1) //[x, y, z] => [ x,  z, -y]
+		#define ROTATED_ONCE_Y(p) vec3i(size.z - p.z - 1, p.y, p.x) //[x, y, z] => [-z,  y,  x]
+		#define ROTATED_ONCE_Z(p) vec3i(size.y - p.y - 1, p.x, p.z) //[x, y, z] => [-y,  x,  z]
+
+		#define ROTATED_TWICE_X(p) ROTATED_ONCE_X(ROTATED_ONCE_X(p))
+		#define ROTATED_TWICE_Y(p) ROTATED_ONCE_Y(ROTATED_ONCE_Y(p))
+		#define ROTATED_TWICE_Z(p) ROTATED_ONCE_Y(ROTATED_ONCE_Y(p))
+
+		#define ROTATED_THRICE_X(p) ROTATED_ONCE_X(ROTATED_TWICE_X(p))
+		#define ROTATED_THRICE_Y(p) ROTATED_ONCE_Z(ROTATED_TWICE_Y(p))
+		#define ROTATED_THRICE_Z(p) ROTATED_ONCE_Y(ROTATED_TWICE_Z(p))
+
+		#define ORIENTATIONS 24
+
+		DensePiece(const DensePiece& from, int oriented){
+			data = (uint8_t*) malloc(from.size.x * from.size.y * from.size.z * sizeof(uint8_t));
+			assert(oriented >= 0 and oriented < 24);
+			orientation = oriented;
+
+			//set the right size;
+			//this is the same as the rotation macros, but without invertions
+			switch(oriented / 4){
+				case 0: size = from.size; break;
+				case 1: size = vec3i(from.size.x, from.size.z, from.size.y); break;
+				case 2: size = vec3i(from.size.z, from.size.y, from.size.x); break;
+				case 3: size = vec3i(from.size.x, from.size.z, from.size.y); break;
+				case 4: size = vec3i(from.size.z, from.size.y, from.size.x); break;
+				case 5: size = from.size; break;
+			}
+
+			//and rotate the size about itself on the z axis
+			switch(oriented % 4){
+				case 0: break; //no rotation
+				case 1: size = vec3i(size.y, size.x, size.z); break;
+				case 2: size = vec3i(size.x, size.y, size.z); break;
+				case 3: size = vec3i(size.y, size.x, size.z); break;
+			}
+
+			for (int z = 0; z < from.size.z; z++){
+				for (int y = 0; y < from.size.y; y++){
+					for (int x = 0; x < from.size.x; x++){
+						vec3i src(x, y, z);
+						vec3i dst;
+
+						switch(oriented / 4){
+							case 0: dst = src; break;
+							case 1: dst = ROTATED_ONCE_X(src); break;
+							case 2: dst = ROTATED_ONCE_Y(src); break;
+							case 3: dst = ROTATED_THRICE_X(src); break;
+							case 4: dst = ROTATED_THRICE_Y(src); break;
+							case 5: dst = ROTATED_TWICE_X(src); break;
+						}
+
+						switch(oriented % 4){
+							case 0: break; //no rotation
+							case 1: dst = ROTATED_ONCE_Z(dst); break;
+							case 2: dst = ROTATED_TWICE_Z(dst); break;
+							case 3: dst = ROTATED_THRICE_Z(dst); break;
+						}
+
+						data[LOOKUP(dst, size)] = from.data[LOOKUP(src, from.size)];
+					}
+				}
+			}
+		}
+
+		bool operator == (const DensePiece& other){
+			if (size == other.size){
+				return memcmp(data, other.data, size.x * size.y * size.z * sizeof(uint8_t)) == 0;
+			}
+			return false;
 		}
 
 		~DensePiece(){
 			free(data);
 		}
 
-		#define ROTATED_ONCE_X(p) vec3i(p.x, p.z, size.y - p.y - 1)
-		#define ROTATED_ONCE_Y(p) vec3i(size.z - p.z - 1, p.y, p.x)
-		#define ROTATED_ONCE_Z(p) vec3i(p.z, p.y, size.x - p.x - 1)
-
-		#define ROATE_TWICE_X(p) vec3i(p.x, size.y - p.y - 1, size.z - p.z - 1)
-		#define ROATE_TWICE_Y(p) vec3i(size.x - p.x - 1, p.y, size.z - p.z - 1)
-		#define ROATE_TWICE_Z(p) vec3i(size.x - p.x - 1, size.y - p.y - 1, p.z)
-
-		#define ROTATE_THRICE_X(p) vec3i(p.x, size.z - p.z - 1, p.y)
-		#define ROTATE_THRICE_Y(p) vec3i(p.z, p.y, size.x - p.x - 1)
-		#define ROTATE_THRICE_Z(p) vec3i(p.y, size.x - p.x - 1, p.z)
-
-
-		bool query(vec3i at, int mode){
-			switch(mode){
-				case 0: return data[LOOKUP(at)];
-				case 1: return data[LOOKUP(ROTATED_ONCE_X(at))];
-				/*case 2: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];
-				case 3: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];
-				case 4: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];
-				case 5: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];
-				case 6: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];
-				case 7: return data[(p.x + p.y * size.x) + p.z * size.x * size.y];*/
-			}
-			assert(false);
-			return false;
+		uint8_t query(vec3i at){
+			return data[LOOKUP(at, size)];
 		}
 
-	private:
 		vec3i size;
-		bool* data;
+		uint8_t* data;
+		int orientation;
 	};
+
 public:
-	struct solution{
-		struct piecePosition{
-			int px, py, pz;
-			int side;
-		};
-
-		piecePosition* positions;
+	//a solution is an array of these, one for every piece copy
+	struct solutionPiece{
+		int pieceId;
+		int copyId;
+		int orientationId;
 	};
 
+	//just copy the pieces, let the worker thread do the real work
 	Solver(vec3i worldSize, const std::list<Piece>& sparsePieces){
 		assert(worldSize > vec3i(0, 0, 0));
 		dimensions = worldSize;
-		nodes = NULL;
+		nodes = nullptr;
 		nodeAmount = 0;
 		nodeIt = 0;
 
 		spaces = dimensions.x * dimensions.y * dimensions.z;
-		currentSolution = (char*) malloc(spaces * sizeof(char));
-	}
 
-	~Solver() {
-		for (std::vector<std::list<Piece*> >::iterator it = pieces.begin(); it != pieces.end(); it++) {
-			for (std::list<Piece*>::iterator it2 = it->begin(); it2 != it->end(); it2++) {
-				if (*it2) delete *it2;
-			}
+		for (auto piece : sparsePieces){
+			pieceImages.emplace_back(std::list<DensePiece>());
+			pieceImages.back().emplace_back(piece);
+			piecesCopies.emplace_back(piece.copies);
+			piecesMass.emplace_back(piece.mass());
 		}
 
-		free(currentSolution);
+		//start the thread
+		solverThread = std::thread(threadEntry, this);
 	}
 
-	//void addPiece(int w, int h, int d, const char* structure, char alias);
-	bool solve(int maxSolutions);
+	bool isWorkerAlive(){
+		return workerAlive;
+	}
+
+	//must not be called until the thread is dead
+	~Solver() {
+		assert(!workerAlive);
+	}
+
+	//stop the solver thread
+	void kill(){
+		dieCommand = true;
+	}
+
+	bool isDead(){
+		return workerAlive;
+	}
+
+	//fills $storage with the last solution that wasn't taken yet, then deletes the solution from the solver's queue
+	//returns nullptr if there is no solution left
+	//responsibility of the caller to free the buffer returned
+	solutionPiece* getSolution(){
+		solutionPiece* sol = nullptr;
+		accessLock.lock();
+		if (solutions.size() > 0){
+			sol = solutions.front();
+			solutions.pop_front();
+		}
+		accessLock.unlock();
+		return sol;
+	}
 
 private:
-	std::vector<std::list<Piece*> > pieces; //pieces with all their images
-	vec3i dimensions;
+	std::list<solutionPiece*> solutions; //queue of malloc'd strings of $spaces size
+	std::thread solverThread;
+	std::mutex accessLock;
 
-	int maxSolutions;
-	char* currentSolution;
-	std::vector<std::string> solutions;
+	bool workerAlive; //read/write for worker, read only for master
+	bool dieCommand; //read-only for worker, read/write for master
 
-	struct header_node;
+	std::vector<std::list<DensePiece>> pieceImages; //original and every unique rotation image
+	std::vector<int> piecesCopies; //number of copies
+	std::vector<int> piecesMass; //number of blocks per piece
+	vec3i dimensions; //world size
 
 	//a 1 in the matrix
+	struct header_node;
 	struct node {
 		node* left;
 		node* right;
@@ -132,12 +218,12 @@ private:
 		header_node* colHeader;
 	};
 
+	#define SOLVER_SPACE_NODE_COPY_VALUE -1
 	struct header_node: public node {
-		int size;
-		short id;
-
-		bool endCol;
-		char name;
+		int size; //height of the column
+		int symbol; //1d space index or piece index
+		int copy; //copy index or SOLVER_SPACE_NODE_COPY_VALUE if symbol is a space index
+		int orientation; //orientation index
 	};
 
 	void cover(header_node* column) {
@@ -192,6 +278,7 @@ private:
 
 	int spaces;
 	int cols;
+	int pieceInstances;
 
 	header_node* header;
 	header_node root;
@@ -205,10 +292,17 @@ private:
 		return &(nodes[nodeIt++]);
 	}
 
+	//costly preparation, calls the initial search
+	void solve();
+
 	//where all the magic happens
 	void search(int k);
 
-	CTimer timer;
+	static void threadEntry(Solver* solver){
+		solver->workerAlive = true;
+		solver->solve();
+		solver->workerAlive = false;
+	}
 };
 
 #endif

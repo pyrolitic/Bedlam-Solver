@@ -1,120 +1,69 @@
+#include <cstring>
+
 #include <vector>
 #include <list>
-
 #include <limits>
 #include <functional>
 #include <iostream>
+#include <algorithm>
 
 #include "solver.h"
 
 using namespace std;
 
-void Solver::addPiece(int w, int h, int d, const char* structure, char alias) {
-	pieces.push_back(list<Piece*>());
-	aliases.append(&alias, 1);
+void Solver::solve() {
+	//make every image of every piece
+	for (std::list<DensePiece> imageList : pieceImages){
+		DensePiece& original = imageList.back();
 
-	list<Piece*>& images = *pieces.rbegin();
-
-	//add the original
-	images.push_back(new Piece(w, h, d, structure));
-	Piece& p = **(images.rbegin());
-
-	//this lambda function check if the image already exists.
-	//not efficient, but pieces are small enough not to matter too much
-	auto addImage = [&images] (Piece* ptr) {
-		for(list<Piece*>::iterator it = images.begin(); it != images.end(); it++) {
-			if (**it == *ptr) {
-				return;
-			}
+		for (int i = 0; i < ORIENTATIONS; i++){
+			imageList.emplace_back(DensePiece(original, i)); //unique rotation $i
 		}
 
-		images.push_back(ptr);
-	};
+		//TODO: if this is too slow, maybe hash everything and compare hashes first
+		int amount = original.size.x * original.size.y * original.size.z; 
+		imageList.sort([&amount](const DensePiece& one, const DensePiece& other) -> bool{
+			return memcmp(one.data, other.data, amount * sizeof(uint8_t)) > 0;
+		});
 
-	//every permutation
-	for (int i = 0; i < 3; i++) {
-		Piece* a = p.rotated(axis_x, i + 1);
-		addImage(a);
-
-		for (int j = 0; j < 3; j++) {
-			Piece* b = a->rotated(axis_y, j + 1);
-			addImage(b);
-
-			for (int k = 0; k < 3; k++) {
-				addImage(b->rotated(axis_z, k + 1));
+		//now remove duplicates
+		auto prev = imageList.begin();
+		for (auto it = std::next(prev); it != imageList.end();){
+			if (*prev == *it){
+				auto next = std::next(it);
+				imageList.erase(it);
+				it = next;
+			}
+			else{
+				it++;
 			}
 		}
 	}
-
-	cout << "added piece \'" << alias << "\', with " << images.size() << " images" << endl;
-}
-
-bool Solver::solve(int maxSolutions) {
-	assert(maxSolutions)
-	if (pieces.size() == 0) {
-		cout << "puzzle has no pieces" << endl;
-		return false;
-	}
-
-	//check if problem can be solved and count the number of nodes in the matrix
-	int piecesCover = 0;
-	for (vector<list<Piece*> >::iterator it = pieces.begin(); it != pieces.end(); it++)
-		piecesCover += it->front()->volume();
-
-
-
-	if (piecesCover < spaces) {
-		cout << "the pieces have less material than the volume of the space" << endl;
-		return false;
-	}
-
-	if (piecesCover > spaces) {
-		cout << "the pieces have more material than the volume of the space" << endl;
-		return false;
-	}
-
-	//otherwise the problem can be solved
-
-	//find the piece with most images and remove all its images but the first
-	//this eliminates redundant solutions that have different orientations
-	//TODO: this only works for cube puzzle boxes like tetris and bedlam; check for this
-	int mostId = 0;
-	int most = 0;
-
-	for (unsigned i = 0; i < pieces.size(); i++)
-		if (pieces[i].size() > most) {
-			most = pieces[i].size();
-			mostId = i;
-		}
-
-	list<Piece*>& chosen = pieces[mostId];
-	list<Piece*>::iterator deleteStart = chosen.begin();
-	deleteStart++; //start with the second one
-
-	for (list<Piece*>::iterator it = deleteStart; it != chosen.end(); it++)
-		delete *it; //avoid memory leak
-
-	chosen.erase(deleteStart, chosen.end());
 
 	//count the amount of nodes and of rows
 	//each row is a permutation of an image of a piece
+	//the number of permutations per piece is the number of images times the number of possible positions
+	nodeAmount = 0;
 	int rows = 0;
-	for (vector<list<Piece*> >::iterator it = pieces.begin(); it != pieces.end(); it++) {
-		int pieceVol = it->front()->volume();
+	pieceInstances = 0;
+	for (int i = 0; i < pieceImages.size(); i++){
+		auto listImages = pieceImages[i];
 		int locations = 0;
 
-		for (list<Piece*>::iterator it2 = it->begin(); it2 != it->end(); it2++)
-			locations += (width - (*it2)->width + 1) * (height - (*it2)->height + 1) * (depth - (*it2)->depth + 1);
+		for (auto image : listImages){
+			vec3i wiggle = (dimensions - image.size) + vec3i(1, 1, 1);
+			locations += wiggle.x * wiggle.y * wiggle.z;
+		}
 
 		rows += locations;
-		nodeAmount += locations * (pieceVol + 1); // +1 is for the piece flag on the right side of the matrix
+		nodeAmount += locations * (piecesMass[i] + 1); // +1 is for the piece flag on the right side of the matrix
+
+		pieceInstances += piecesCopies[i];
 	}
 
-	this->maxSolutions = maxSolutions;
-
-	cols = spaces + pieces.size();
+	cols = spaces + pieceInstances;
 	partialSolutionRows = (node**) malloc(cols * sizeof(node*));
-	cout << "there are " << cols << " columns in the matrix" << endl;
+	printf("there are %d columns and %d rows in the sparse matrix\n", cols, rows);
 
 	//create the header, which starts at the root
 	header = (header_node*) malloc(cols * sizeof(header_node));
@@ -124,24 +73,30 @@ bool Solver::solve(int maxSolutions) {
 	root.right = &header[0];
 	root.left = &header[cols - 1];
 
+	//make header horizontal links
 	for (int i = 0; i < cols; i++) {
 		header_node& h = header[i];
 		h.right = (i == cols - 1) ? &root : &header[i + 1];
 		h.left = (i == 0) ? &root : &header[i - 1];
-
-		if (i >= spaces) {
-			h.name = aliases[i - spaces];
-			h.endCol = true;
-		}
-
-		else {
-			h.name = NON_FLAG_NODE_NAME;
-			h.endCol = false;
-			h.id = i;
-		}
 	}
 
-	cout << "there are " << rows << " rows in the table" << endl;
+	for (int i = 0; i < spaces; i++){
+		header_node& h = header[i];
+		h.symbol = i;
+		h.copy = SOLVER_SPACE_NODE_COPY_VALUE;
+	}
+
+	int nodeId = 0;
+	for (int i = 0; i < pieceImages.size(); i++){
+		for (int c = 0; c < piecesCopies[i]; c++){
+			for (auto im : pieceImages[i]){
+				header_node& h = header[nodeId++];
+				h.symbol = i;
+				h.copy = c;
+				h.orientation = im.orientation;
+			}
+		}
+	}
 
 	//allocate the exact amount of nodes
 	nodes = (node*) malloc(nodeAmount * sizeof(node));
@@ -149,150 +104,149 @@ bool Solver::solve(int maxSolutions) {
 
 	//there is no way to access a node at a specific location directly, so we must build the matrix in a specific way;
 
-	//store a line of the bottom-most processed nodes
-	node** rule = (node**) malloc(cols * sizeof(node*));
-	memset(rule, 0, cols * sizeof(node*));
+	//store a line of the bottom-most processed nodes, so as to easily provide a top link to new nodes
+	node** lowestNodes = (node**) malloc(cols * sizeof(node*));
+	for (int i = 0; i < cols; i++){
+		lowestNodes[i] = &header[i];
+	}
 
 	//create the sparse matrix row by row
 	int row = 0;
+	int pieceId = 0; //which piece instance are we on. not trivial to compute given the variable number of images and copies per piece, so just increment instead
 
-	list<pair<int, list<Piece*>::iterator> > its;
+	for (int pieceId = 0; pieceId < pieceImages.size(); pieceId++){
+		auto pieceList = pieceImages[pieceId];
 
-	for (int i = 0; i < pieces.size(); i++)
-		its.push_back(pair<int, list<Piece*>::iterator>(i, pieces[i].begin()));
+		//as many copies as requested
+		for(int copyId = 0; copyId < piecesCopies[pieceId]; copyId++){
 
-	list<pair<int, list<Piece*>::iterator> >::iterator it = its.begin();
+			//every unique orientation
+			for (auto im : pieceList){
 
-	while (its.size() > 0) {
-		int pieceId = it->first;
-		Piece& im = **(it->second);
+				//all possible locations
+				for (int bz = 0; bz <= dimensions.z - im.size.z; bz++) {
+					for (int by = 0; by <= dimensions.y - im.size.y; by++) {
+						for (int bx = 0; bx <= dimensions.x - im.size.x; bx++) {
 
-		//locations
-		for (int z = 0; z <= depth - im.depth; z++)
-			for (int y = 0; y <= height - im.height; y++)
-				for (int x = 0; x <= width - im.width; x++) {
+							node* first = nullptr; //first in the row
+							node* last = nullptr; //last one to be added
 
-					node* first = NULL;
-					node* last = NULL;
+							//blocks - iterate in the order bz, by, bx so that the id increases at each step
+							for (int k = 0; k < im.size.z; k++){
+								for (int j = 0; j < im.size.y; j++){
+									for (int i = 0; i < im.size.x; i++) {
+										if (im.query(vec3i(i, j, k))) {
+											int horizontalId = space(bx + i, by + j, bz + k);
 
-					bool ref = false;
+											node* cell = newNode();
+											cell->colHeader = &header[horizontalId];
 
-					//blocks - iterate in the order z, y, x so that the id increases at each step
-					for (int k = 0; k < im.depth; k++)
-						for (int j = 0; j < im.height; j++)
-							for (int i = 0; i < im.width; i++) {
-								if (im.data(i, j, k) or ref) {
-									int spaceId = (!ref) ? space(x + i, y + j, z + k) : spaces + pieceId;
+											//vertical
+											lowestNodes[horizontalId]->down = cell;
+											cell->up = lowestNodes[horizontalId];
+											lowestNodes[horizontalId] = cell; //this is now the bottom-most node of this column
 
-									node* cell = newNode();
-
-									cell->colHeader = &header[spaceId];
-
-									//vertical
-									if (!rule[spaceId]) { //the first few rows
-										header[spaceId].down = cell;
-										cell->up = &header[spaceId];
+											//horizontal
+											if (last){
+												last->right = cell;
+												cell->left = last;
+												last = cell;
+											}
+											else {
+												first = cell;
+												last = cell;
+											}
+										}
 									}
-
-									else {
-										rule[spaceId]->down = cell;
-										cell->up = rule[spaceId];
-									}
-
-									rule[spaceId] = cell;
-
-									//horizontal
-									if (!last) first = last = cell;
-									else {
-										last->right = cell;
-										cell->left = last;
-										last = cell;
-									}
-								}
-
-								//prolong the loop by one to account for the ref flag on the right
-								if (!ref and k == im.depth - 1 and j == im.height - 1 and i == im.width - 1) {
-									ref = true;
-									i--;
 								}
 							}
 
-					first->left = last;
-					last->right = first;
+							//add the ref node to the right of the position nodes
+							int horizontalId = spaces + pieceId;
+							node* ref = newNode();
 
-					row++; //one row for every location of every image
+							ref->colHeader = &header[horizontalId];
+							assert(ref->colHeader->symbol == pieceId);
+							assert(ref->colHeader->copy == copyId);
+
+							ref->up = lowestNodes[horizontalId];
+							lowestNodes[horizontalId]->down = ref;
+							lowestNodes[horizontalId] = ref;
+
+							
+							last->right = ref;
+							ref->left = last;
+
+							//wrap around the links
+							ref->right = first;
+							first->left = ref;
+
+							row++; //row done
+						}
+					}
 				}
-
-		it->second++;
-		if (it->second == pieces[it->first].end()) it = its.erase(it);
-
-		else if (sType == interleaved) it++;
-
-		//loop over from the start
-		if (sType == interleaved) if (it == its.end()) it = its.begin();
+			}
+		}
 	}
 
-	//rule now contains the lowest nodes - connect them to the header nodes
+	//lowestNodes now contains the final lowest nodes - connect them to the header nodes
 	for (int i = 0; i < cols; i++) {
-		rule[i]->down = &header[i];
-		header[i].up = rule[i];
+		lowestNodes[i]->down = &header[i];
+		header[i].up = lowestNodes[i];
 	}
 
-	free(rule);
+	free(lowestNodes);
 
 	//count the nodes in each column
 	for (header_node* col = (header_node*) root.right; col != &root; col = (header_node*) col->right) {
 		col->size = 0;
-		for (node* item = col->down; item != col; item = item->down)
+		for (node* item = col->down; item != col; item = item->down){
 			col->size++;
+		}
 	}
 
-	cout << endl;
-
 	//fire it up
-	timer.reset();
-	CTimer timer2;
 	search(0);
-	cout << "took " << timer2.elapsedMilli() << " milliseconds to find " << solutions.size() << " solutions" << endl;
 
 	free(header);
 	free(partialSolutionRows);
-
-	return solutions.size() > 0;
+	free(nodes);
 }
 
 //Knuth's Dancing Links
 void Solver::search(int k) {
-	if ((int) solutions.size() == maxSolutions) return;
+	if (dieCommand) return;
 
 	//found a solution
 	if (root.right == &root or root.left == &root) {
-		cout << "found in " << timer.sinceLastMilli() << " milliseconds since last one" << endl;
+		printf("found solution\n");
 
 		//process solution
+		solutionPiece* solution = (solutionPiece*) malloc(pieceInstances * sizeof(solutionPiece));
+		assert(k == pieceInstances);
+
 		for (int i = 0; i < k; i++) {
 			node* n = partialSolutionRows[i];
 
-			//go all the way to the end of the row
-			while (n->colHeader->name == NON_FLAG_NODE_NAME)
+			//go all the way to the end of the row, to the ref node
+			while (n->colHeader->copy == SOLVER_SPACE_NODE_COPY_VALUE){
 				n = n->left;
-
-			char name = n->colHeader->name;
-
-			n = n->right;
-
-			while (!n->colHeader->endCol) {
-				currentSolution[n->colHeader->id] = name;
-				n = n->right;
 			}
+
+			header_node* ref = (header_node*) n;
+			solution[i].pieceId = ref->symbol;
+			solution[i].copyId = ref->copy;
+			solution[i].orientationId = ref->orientation;
 		}
 
-		solutions.push_back(string(currentSolution));
+		accessLock.lock();
+		solutions.emplace_back(solution);
+		accessLock.unlock();
 		return;
 	}
 
 	//choose a column
-	header_node* col = NULL;
+	header_node* col = nullptr;
 	col = (header_node*) root.right;
 
 	
@@ -305,6 +259,7 @@ void Solver::search(int k) {
 		}
 	}*/
 
+	if(dieCommand) return;
 	cover(col);
 
 	for (node* row = col->down; row != col; row = row->down) {
@@ -320,78 +275,4 @@ void Solver::search(int k) {
 	}
 
 	uncover(col);
-}
-
-//early debug only, useless
-void Solver::printSolutionsLine(int amount) const {
-	if (solutions.size() == 0) {
-		cout << "there are no solutions" << endl;
-		return;
-	}
-
-	if (amount == 0 or amount > solutions.size()) amount = solutions.size();
-
-	for (int i = 0; i < amount; i++)
-		cout << solutions[i] << endl;
-}
-
-void Solver::printSolutionsHorizontalLevels(int amount) const {
-	if (solutions.size() == 0) {
-		cout << "there are no solutions" << endl;
-		return;
-	}
-
-	if (amount == 0 or amount > solutions.size()) amount = solutions.size();
-
-	for (int item = 0; item < amount; item++) {
-		for (int j = 0; j < height; j++) {
-			for (int k = 0; k < depth; k++) {
-				for (int i = 0; i < width; i++) {
-					const string& s = solutions[item];
-					cout << s[space(i, j, k)];
-				}
-
-				cout << "  ";
-			}
-
-			cout << endl;
-		}
-
-		cout << endl << endl;
-	}
-}
-
-void Solver::printSolutionsVerticalLevels(int perLine, int amount) const {
-	assert(perLine > 0);
-
-	if (solutions.size() == 0) {
-		cout << "there are no solutions" << endl;
-		return;
-	}
-
-	if (amount == 0 or amount > solutions.size()) amount = solutions.size();
-	if (perLine > amount) perLine = amount;
-
-	int lines = amount / perLine;
-	int atLineStart = 0;
-
-	for (int b = 0; b < lines; b++) {
-		for (int k = 0; k < depth; k++) {
-			for (int j = 0; j < height; j++) {
-				for (int item = 0; (item < perLine and b != lines - 1) or (b == lines - 1 and item < amount % perLine); item++) {
-					const string& s = solutions[atLineStart + item];
-
-					for (int i = 0; i < width; i++)
-						cout << s[space(i, j, k)];
-
-					cout << "  ";
-				}
-
-				cout << endl;
-			}
-		}
-
-		cout << endl << endl;
-		atLineStart += perLine;
-	}
 }

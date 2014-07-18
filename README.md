@@ -6,6 +6,12 @@ GUI development branch, uses GLUT and should be cross platform.
 User will be able to input the pieces in a minecraft style editor (though 3rd person).
 Resulting solution will be animated.
 
+Done so far:
+UI system
+Piece editing
+Piece listing
+Solver rewriting (not tested yet)
+
 License
 =======
 The MIT License (MIT)

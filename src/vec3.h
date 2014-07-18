@@ -7,10 +7,7 @@
 
 #include <functional>
 
-class vec2;
 class quat;
-
-//most of the things below only make sense for floating point things
 
 template<typename T>
 class vec3Templated {
@@ -193,31 +190,6 @@ class vec3Templated {
 		T maxComponent() const {
 			return fmax(fmax(x, y), z);
 		}
-
-		friend vec3Templated<T> minVec(const vec3Templated<T>& v1, const vec3Templated<T>& v2) {
-			vec3Templated<T> v(v1);
-			if (v2.x < v1.x) v.x = v2.x;
-			if (v2.y < v1.y) v.y = v2.y;
-			if (v2.z < v1.z) v.z = v2.z;
-
-			return v;
-		}
-
-		friend vec3Templated<T> maxVec(const vec3Templated<T>& v1, const vec3Templated<T>& v2) {
-			vec3Templated<T> v(v1);
-			if (v2.x > v1.x) v.x = v2.x;
-			if (v2.y > v1.y) v.y = v2.y;
-			if (v2.z > v1.z) v.z = v2.z;
-
-			return v;
-		}
-
-		friend vec3Templated<T> computeNormal(const vec3Templated<T>& a, const vec3Templated<T>& b, const vec3Templated<T>& c) {
-			vec3Templated<T> A = a - b;
-			vec3Templated<T> B = a - c;
-
-			return (A ^ B).normal();
-		}
 };
 
 template<typename T>
@@ -225,27 +197,48 @@ inline vec3Templated<T> operator*(T f, const vec3Templated<T>& v) {
 	return v * f;
 }
 
+template<typename T>
+inline vec3Templated<T> minVec(const vec3Templated<T>& v1, const vec3Templated<T>& v2) {
+	vec3Templated<T> v(v1);
+	if (v2.x < v1.x) v.x = v2.x;
+	if (v2.y < v1.y) v.y = v2.y;
+	if (v2.z < v1.z) v.z = v2.z;
+
+	return v;
+}
+
+template<typename T>
+inline vec3Templated<T> maxVec(const vec3Templated<T>& v1, const vec3Templated<T>& v2) {
+	vec3Templated<T> v(v1);
+	if (v2.x > v1.x) v.x = v2.x;
+	if (v2.y > v1.y) v.y = v2.y;
+	if (v2.z > v1.z) v.z = v2.z;
+
+	return v;
+}
+
+template<typename T>
+inline vec3Templated<T> computeNormal(const vec3Templated<T>& a, const vec3Templated<T>& b, const vec3Templated<T>& c) {
+	vec3Templated<T> A = a - b;
+	vec3Templated<T> B = a - c;
+
+	return (A ^ B).normal();
+}
+
+
 typedef vec3Templated<float> vec3;
 typedef vec3Templated<float> vec3f;
 typedef vec3Templated<int> vec3i;
 
-//make vec3i it hashable
-/*
 namespace std {
-	template <> struct hash<vec3i>{
-		#define ROTATE_LEFT(x, amount) ((x << amount) | (x >> (sizeof(x) * 8 - amount)))
-		std::size_t operator()(const vec3i& k) const{
-			//x = 31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00 
-			//y = 21 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00 31 30 29 28 27 26 25 24 23 22 
-			//z = 10 09 08 07 06 05 04 03 02 01 00 31 30 29 28 27 26 25 24 23 22 31 20 19 18 17 16 15 14 13 12 11 
-			using std::hash;
-			return hash<int>()((k.x) ^ ROTATE_LEFT(k.y, 10) ^ ROTATE_LEFT(k.z, 21));
-		}
-	};
-} */
-namespace std {
+	//specify a hashing function for vec3
+	//this gives good results for small numbers for vec3i, see hash_analysis.py
+	//TODO: this will fail for vec3f since shifting is not defined for floats, so type specify this function
 	template <typename T> struct hash<vec3Templated<T>>{
+		#ifndef ROTATE_LEFT
 		#define ROTATE_LEFT(x, amount) ((x << amount) | (x >> (sizeof(x) * 8 - amount)))
+		#endif
+
 		std::size_t operator()(const vec3Templated<T>& k) const{
 			//x = 31 30 29 28 27 26 25 24 23 22 21 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00 
 			//y = 21 20 19 18 17 16 15 14 13 12 11 10 09 08 07 06 05 04 03 02 01 00 31 30 29 28 27 26 25 24 23 22 

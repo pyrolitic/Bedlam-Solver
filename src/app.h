@@ -1,3 +1,6 @@
+#ifndef APP_H
+#define APP_H
+
 #if !defined(_WIN32) && (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)))
 #define UNIX_LIKE
 #endif 
@@ -15,13 +18,22 @@
 #include <limits>
 #include <list>
 #include <vector>
+#include <typeinfo>
+#include <cxxabi.h> //this and abi::__cxa_demangle might only be available on gcc
 
 #include <GL/glew.h>
+#include <GL/glut.h>
+#if GLUT_LEFT_BUTTON != 0 || GLUT_MIDDLE_BUTTON != 1 || GLUT_RIGHT_BUTTON != 2
+#error rework the mouse handling cause the assumptions about the mouse button symbollic constants are wrong; use a hashtable or something instead
+#endif
 
 #include "frame.h"
+#include "label.h"
 #include "scrolling_frame.h"
 #include "button.h"
 #include "counter.h"
+#include "text_input.h"
+#include "camera_control.h"
 
 #include "solver.h"
 #include "piece.h"
@@ -29,21 +41,34 @@
 #include "text_render.h"
 #include "vec3.h"
 
+
+//helper
+/*template <class T>
+inline std::string demangledTypeName(const T& thing){
+	char* demangled = abi::__cxa_demangle(typeid(thing).name(), nullptr, nullptr, nullptr);
+	std::string str(demangled);
+	free(demangled);
+	return str;
+}*/
+
+template <class T>
+inline std::string demangledTypeName(const T* thing){
+	if (thing){
+		char* demangled = abi::__cxa_demangle(typeid(*thing).name(), nullptr, nullptr, nullptr);
+		std::string str(demangled);
+		free(demangled);
+		return str;
+		//return demangledName(*thing);
+	}
+	else{
+		return "nullptr";
+	}
+}
+
+
+
 class App{
 public:
-	App(){}
-	~App(){
-		delete editorElems;
-		delete listingStateElems;
-		delete solvingElems;
-		delete solutionElems;
-	}
-
-	App(const App&); //nope
-	void operator =(const App&); //nope
-	
-	static App app; //singleton instance
-	
 	int width, height; //window dimensions
 	int anisoLevel; //[1, 16]
 	
@@ -51,72 +76,85 @@ public:
 	Texture* blurredBlob;
 	
 	int drawingAt;
-	
-	//user input
-	bool mousePressed[3]; //actual mouse button state
-	bool mousePressedEaten[3]; //whether a mouse button down event was acted upon already
-	int oldMouse[2], mouse[2]; //pointer position, window pixel space
-	bool keyControl, keyAlt, keyShift; //modifiers
 
-	//mouselook
-	int xDragBase, yDragBase; //window mouse coords
-	float cameraTurn, cameraTurnDragBase; //radians, about the center, angle wrapped
-	float cameraDive, cameraDiveDragBase; //radians
-	float cameraDist, cameraDistDragBase; //from the center
+	//used for dragging
+	UIElem* mouseButtonDownOn[3]; //do not interact with, just compare the pointer, since it could be dangling
+	vec2i mouseButtonDownAt[3];
+	bool mouseDown[3];
+	bool lastMouseDown[3]; 
 
-	//pleasant limits, radians
-	#define CAMERA_MIN_DIVE -2.3f
-	#define CAMERA_MAX_DIVE -0.3f
-	#define CAMERA_DIST_MIN 1.5f
-
-	std::list<Piece*> pieces;
+	//position
+	vec2i oldMouse;
+	vec2i mouse;
 
 	//states
 	#define STATE_LIST_PIECES 0
 	#define STATE_EDIT_PIECE 1
 	#define STATE_SOLVE 2
 	#define STATE_SHOW_RESULT 3
-	int state;
+	#define NUM_STATES 4
+	int state; //current state
 	const char* stateNames[4] = {"Pieces", "Editor", "Solving", "Result"};
 
 	//3d view world space
 	vec3 cameraEye;
 	vec3 mouseRayDir;
-
+	
+	void (App::*stateUpdate[NUM_STATES])(void);
+	void (App::*stateOverlay[NUM_STATES])(void);
+	UIElem* stateElems[NUM_STATES]; //root container for UI of each state
 	//=====================================
 	//Piece listing state
 	//=====================================
-	struct listPiece : public Frame{
-		Piece item;
-		std::string name;
-		int copies;
+	#define LIST_PIECE_FRAME_WIDTH 250
 
-		listPiece() : Frame(0, 0, 200, 60){
-			UIElem::addChild(new Button(0, 20, (char*)"edit"));
-			UIElem::addChild(new Button(30, 20, (char*)"delete"));
-			UIElem::addChild(new Counter(50, 20, 0, 10));
-		}
+	struct listPiece : public Frame{
+		std::list<Piece>::iterator itemIt;
+		std::string name;
+
+		TextInput* nameEntry;
+		Counter* copiesCounter;
+
+		listPiece(const std::list<Piece>::iterator& it);
+		~listPiece();
 	};
 
+	void listPieceEditButtonCallback(UIElem* context, vec2i at, int button);
+	void listPieceDeleteButtonCallback(UIElem* context, vec2i at, int button);
+
+	std::list<Piece> pieces; //actual piece storage
 	ScrollingFrame* pieceListFrame;
 
-	struct listSolvingOptions : public Frame{
-		listSolvingOptions() : Frame(0, 500, 200, 50){
-			//UIElem::addChild(new Label((char*)"width x height x depth"));
-			//UIElem::addChild(new Button((char*) ));
-		}
-	};
+	Button* newPieceButton;
+	void newPieceButtonCallback(UIElem* context, vec2i at, int button);
 
-	listSolvingOptions* solvingOptionsFrame;
-	UIElem* listingStateElems; //container of the above
+	Frame* solvingOptionsFrame;
+	Counter* dimCounters[3];
+	Button* solveButton;
+	Label* materialStatusLabel;
+	Label* solvingPossibleLabel;
+	void solveButtonCallback(UIElem* context, vec2i at, int button);
+
+	//for both the piece copy and world size counters
+	void counterChangeCallback(Counter* context, int oldValue, int newValue);
+
+	bool solvingPossible;
+	void pieceListCheckSolvingPossiblity();
+
+	void pieceListInit();
+	void pieceListingUpdate();
+	void pieceListingOverlay();
 
 	//=====================================
 	//Piece editing state
 	//=====================================
+	CameraControl* editingCameraControl;
+	vec3f editingCameraEye;
+
 	#define FLOATING_GRID_EXTENT 3 //radius from the center
-	Piece* editedPiece;
-	int editingLayer; //which layer currently editing
-	bool blocksLaid; //how many blocks is the peice made of
+	Piece editedPiece; //a temporary piece separate from the stored ones
+	listPiece* editedPieceParentRef; //reference to the actual piece being edited
+	bool editingNewPiece; //whether the discard button will cause the piece to be deleted or not
 	bool checkRayCollision; //wether to check for block collision (if the mouse moved or if a block was laid or deleted)
 
 	//keep results of the last collision, so that the collision check won't be done every frame
@@ -133,57 +171,79 @@ public:
 	};
 
 	std::list<pieceChange> editingHistory;
-	std::list<pieceChange>::iterator editingHistoryCurrentStep;
 
-	Frame* editorFrame;
-	Button* discardButton, * saveButton, * undoButton;
-	UIElem* editorElems;
+	Button* discardButton;
+	Button* undoButton;
+	Button* saveButton;
+
+	void discardButtonCallback(UIElem* context, vec2i at, int button);
+	void saveButtonCallback(UIElem* context, vec2i at, int button);
+	void undoButtonCallback(UIElem* context, vec2i at, int button);
+
+	void editingInit();
+	void editingUpdate();
+	void editingOverlay();
 
 	//=====================================
 	//Solving state
 	//=====================================
 	//Solver solver; //TODO: fix the solver
 	struct listSolution : public Frame{
-		
-		int axis;
 		bool seen;
+		Solver::solutionPiece* raw;
 
-		void draw(){
-			if (seen){
-				setColor(0.4f, 0.8f, 0.4f);
-			}
-			Frame::draw();
-		}
+		listSolution(Solver::solutionPiece* block);
+		~listSolution();
+		void draw();
 	};
 
-	Frame* solvingFrame;
-	UIElem* solvingElems;
+	void listSolutionShowButtonCallback(UIElem* context, vec2i at, int button);
+	void listSolutionRemoveButtonCallback(UIElem* context, vec2i at, int button);
+
+	ScrollingFrame* solvingSolutionList;
+	Solver* solver;
+
+	Button* stopSolverButton;
+	void stopSolverButtonCallback(UIElem* context, vec2i at, int button);
+
+	void solvingInit();
+	void solvingUpdate();
+	void solvingOverlay();
 
 	//=====================================
 	//Solution animation state
 	//=====================================
-	Solver::solution* animatedSolution;
+	listSolution* animatedSolution;
 	Button* nextPieceButton, * resetButton;
-	UIElem* solutionElems;
 
+
+	void solutionInit();
+	void solutionUpdate();
+	void solutionOverlay();
+	
+	UIElem* elemHover;
+
+	//other
+	void transition(int newState);
 	void init();
+	void end();
 
 	//callbacks
 	void reshape(int w, int h);
 	void update();
-	void keyboard(uint8_t key, int x, int y);
+	void keyboardDown(int key, int x, int y);
+	void keyboardUp(int key, int x, int y);
+	void specialDown(int key, int x, int y);
+	void specialUp(int key, int x, int y);
 	void mouseButton(int key, int state, int x, int y);
 	void mouseMotion(int x, int y); //this is used for both active (with button held) and passive mouse motion
-	void special(int key, int x, int y);
 	void idle();
 
 private:
 	//helpers
-	bool checkButton(int button);
 	void drawCube(int x, int y, int z);
 	void drawCubeOutlines(int x, int y, int z);
-	static unsigned int timeMilli();
+	unsigned int timeMilli();
 };
 
-
-
+#endif 
