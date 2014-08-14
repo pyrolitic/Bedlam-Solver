@@ -1,36 +1,48 @@
-
-
 #include <GL/glew.h>
 #include <GL/freeglut.h>
-#include <GL/glu.h>
 
 #include "app.h"
+#include "graphics/ui_render.h"
 
-void App::transition(int newState){
-	//reset mouse related state
+UIRender* uiRender = nullptr;
+
+vec2i windowResolution;
+int anisoLevel;
+int drawingAt;
+
+struct mouseInfo_s mouseInfo;
+struct keyboardState_s keyboardState;
+
+int state;
+Screen* Screen::screens[NUM_STATES];
+
+std::list<Piece> pieces; //actual piece storage
+vec3i worldSize;
+Solver* solver;
+
+void cleanInput(){
+	//reset mouseInfo.mouse related state
 	for (int i = 0; i < 3; i++){
-		mouseButtonDownOn[i] = nullptr;
-		mouseDown[i] = false;
-		lastMouseDown[i] = false;
+		mouseInfo.mouseButtonDownOn[i] = nullptr;
+		mouseInfo.mouseDown[i] = false;
+		mouseInfo.lastMouseDown[i] = false;
 	}
 
 	UIElem::focus = nullptr;
-
-	state = newState;
+	UIElem::hover = nullptr;
 }
 
-void App::init(){
+void init(){
 	srand(time(NULL));
 
-	width = 800;
-	height = 600;
-	
-	glutInitWindowSize(width, height);
+	windowResolution.set(800, 600);
+	glutInitWindowSize(windowResolution.x, windowResolution.y);
 	glutInitDisplayMode(GLUT_RGB | GLUT_MULTISAMPLE);
 	glutCreateWindow("Bedlam Puzzle Solver");
 	printf("created main glut window\n");
 
 	//Let GLEW chase those extension function pointers
+	glewExperimental = GL_TRUE;
 	GLenum err = glewInit();
 	if (err != GLEW_OK){
 		fprintf(stderr, "could not init glew\n");
@@ -45,27 +57,16 @@ void App::init(){
 		printf("largest anisotropic filtering supported: %dx\n", anisoLevel);
 	}
 	else{
-		anisoLevel = 0;
+		anisoLevel = 1;
 		printf("anisotropic filtering not supported\n");
 	}
 
-	uint8_t* blurred = (uint8_t*) malloc(256 * 256);
-
-	for(int j = 0; j < 256; j++){
-		float y = (float)j / 256;
-		for (int i = 0; i < 256; i++){
-			float x = (float)i / 256;
-			float dist = sqrt(x * x + y * y);
-			float coeff = cos(M_PI * dist * 0.5f);
-			blurred[i + j * 256] = (uint8_t)(std::max(0.0f, coeff * 255));
-		}
-	}
-
-	blurredBlob = new Texture(GL_ALPHA8, GL_ALPHA, GL_UNSIGNED_BYTE, 256, 256, blurred, GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR, anisoLevel);
-	free(blurred);
-
 	TextRender::init();
+	TextInput::init();
 	Frame::init();
+	printf("initialized statics\n");
+
+	uiRender = new UIRender();
 
 	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
 	glClearDepth(1.0f);
@@ -78,187 +79,82 @@ void App::init(){
 	glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
 	glEnable(GL_LINE_SMOOTH);
 	glEnable(GL_POLYGON_SMOOTH);
-	glEnable(GL_MULTISAMPLE_ARB);
+	//glEnable(GL_MULTISAMPLE_ARB);
 
 	glEnable(GL_DEPTH_TEST);
-	CHECK_GL_ERROR
+	glEnable(GL_SCISSOR_TEST);
 
 	//build UI
-	//create all-encompassing containers for each state
-	for(int i = 0; i < NUM_STATES; i++){
-		stateElems[i] = new UIElem(vec2i(0, 0));
-	}
+	Screen::screens[STATE_LIST_PIECES] = new PieceListScreen();
+	Screen::screens[STATE_EDIT_PIECE] = new EditingScreen();
+	Screen::screens[STATE_SOLVE] = new SolvingScreen();
+	Screen::screens[STATE_SHOW_RESULT] = new SolutionScreen();
+	printf("created screens\n");
 
-	pieceListInit();
-	editingInit();
-	solvingInit();
-	solutionInit();
-
-	stateUpdate[STATE_LIST_PIECES] = &App::pieceListingUpdate;
-	stateUpdate[STATE_EDIT_PIECE] = &App::editingUpdate;
-	stateUpdate[STATE_SOLVE] = &App::solvingUpdate;
-	stateUpdate[STATE_SHOW_RESULT] = &App::solutionUpdate;
-
-	stateOverlay[STATE_LIST_PIECES] = &App::pieceListingOverlay;
-	stateOverlay[STATE_EDIT_PIECE] = &App::editingOverlay;
-	stateOverlay[STATE_SOLVE] = &App::solvingOverlay;
-	stateOverlay[STATE_SHOW_RESULT] = &App::solutionOverlay;
+	glutReportErrors();
 
 	//ignition
 	state = STATE_LIST_PIECES;
+
+	//schedule the first update
+	glutTimerFunc(500, updateCallback, 0);
 }
 
-void App::end(){
-	//delete all user interface elements
+void end(){
 	for (int i = 0; i < NUM_STATES; i++){
-		delete stateElems[i];
+		delete Screen::screens[i];
 	}
 
 	Frame::end();
+	TextRender::end();
+	TextInput::end();
 }
 
-void App::drawCube(int x, int y, int z){
-	//top
-	glVertex3f(x    , y + 1, z    );
-	glVertex3f(x + 1, y + 1, z    );
-	glVertex3f(x + 1, y + 1, z + 1);
-	glVertex3f(x    , y + 1, z + 1);
-
-	//bottom
-	glVertex3f(x    , y,     z);
-	glVertex3f(x + 1, y,     z);
-	glVertex3f(x + 1, y,     z + 1);
-	glVertex3f(x    , y,     z + 1);
-
-	//left
-	glVertex3f(x    , y    , z);
-	glVertex3f(x    , y    , z + 1);
-	glVertex3f(x    , y + 1, z + 1);
-	glVertex3f(x    , y + 1, z);
-
-	//right
-	glVertex3f(x + 1, y    , z);
-	glVertex3f(x + 1, y    , z + 1);
-	glVertex3f(x + 1, y + 1, z + 1);
-	glVertex3f(x + 1, y + 1, z);
-
-	//front
-	glVertex3f(x    , y    , z);
-	glVertex3f(x + 1, y    , z);
-	glVertex3f(x + 1, y + 1, z);
-	glVertex3f(x    , y + 1, z);
-
-	//back
-	glVertex3f(x    , y    , z + 1);
-	glVertex3f(x + 1, y    , z + 1);
-	glVertex3f(x + 1, y + 1, z + 1);
-	glVertex3f(x    , y + 1, z + 1);
+void reshapeCallback(int w, int h){
+	windowResolution.set(w, h);
+	glViewport(0, 0, w, h);
+	glScissor(0,0,w,h);
+	if (uiRender) uiRender->windowResized(windowResolution);
 }
 
-void App::drawCubeOutlines(int x, int y, int z){
-	glVertex3f(x    , y    , z    );
-	glVertex3f(x + 1, y    , z    );
-
-	glVertex3f(x    , y    , z    );
-	glVertex3f(x    , y    , z + 1);
-
-	glVertex3f(x + 1, y    , z    );
-	glVertex3f(x + 1, y    , z + 1);
-
-	glVertex3f(x    , y    , z + 1);
-	glVertex3f(x + 1, y    , z + 1);
-
-
-	glVertex3f(x    , y + 1, z    );
-	glVertex3f(x + 1, y + 1, z    );
-
-	glVertex3f(x    , y + 1, z    );
-	glVertex3f(x    , y + 1, z + 1);
-
-	glVertex3f(x + 1, y + 1, z    );
-	glVertex3f(x + 1, y + 1, z + 1);
-
-	glVertex3f(x    , y + 1, z + 1);
-	glVertex3f(x + 1, y + 1, z + 1);
-
-
-	glVertex3f(x    , y    , z    );
-	glVertex3f(x    , y + 1, z    );
-
-	glVertex3f(x + 1, y    , z    );
-	glVertex3f(x + 1, y + 1, z    );
-
-	glVertex3f(x    , y    , z + 1);
-	glVertex3f(x    , y + 1, z + 1);
-
-	glVertex3f(x + 1, y    , z + 1);
-	glVertex3f(x + 1, y + 1, z + 1);
-}
-
-unsigned int App::timeMilli() {
-	#ifdef UNIX_LIKE
-	struct timeval t;
-	gettimeofday(&t, NULL);
-	return (int) (t.tv_sec * 1000 + t.tv_usec / 1000);
-	
-	#else //windoze
-	return (int) GetTickCount();
-	#endif
-}
-
-void App::reshape(int w, int h){
-	width = w;
-	height = h;
-	glViewport(0, 0, width, height);
-}
-
-void App::update(){
-	int currentTime = timeMilli();
+void displayCallback(){
+	int currentTime = glutGet(GLUT_ELAPSED_TIME);
 
 	//update for each state
-	(this->*stateUpdate[state])();
+	Screen::screens[state]->update();
 
-	std::copy(mouseDown, mouseDown + 3, lastMouseDown);
+	std::copy(mouseInfo.mouseDown, mouseInfo.mouseDown + 3, mouseInfo.lastMouseDown);
 
-	//UI, set up ortho projection
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	glOrtho(0, width, height, 0, -1.0, 1.0);
-	CHECK_GL_ERROR
-
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
-	CHECK_GL_ERROR
-	
+	//UI
 	const int labelBufLength = 256;
 	char labelBuf[labelBufLength];
 	int metricW, metricH;
 	//debug strings
 
 	//draw UI
-	glDisable(GL_DEPTH_TEST);
-	stateElems[state]->draw();
 
-	(this->*stateOverlay[state])();
+	Screen::screens[state]->rootUI->update();
+	Screen::screens[state]->rootUI->draw(0);
+	uiRender->render();
 
 	//status label
-	glColor4f(1.0f, 1.0f, 0.5f, 1.0f);
-	snprintf(labelBuf, labelBufLength, "state: %s", stateNames[state]);
-	TextRender::render(labelBuf, 10, height - 100);
+	/*glColor4f(1.0f, 1.0f, 0.5f, 1.0f);
 
 	//element hovering over
-	if (elemHover){
-		std::string name = demangledTypeName(elemHover);
+	if (UIElem::hover){
+		std::string name = demangledTypeName(UIElem::hover);
 		sprintf(labelBuf, "hovering over a %s", name.c_str());
-		TextRender::render(labelBuf, 10, height - 20);
-	}
+		TextRender::render(labelBuf, 10, windowResolution.y - 20);
+	}*/
 
+	glutReportErrors();
 	glutSwapBuffers();
-	GLerror::list("after swap buffers");
 }
 
-void App::keyboardDown(int key, int x, int y){
+void keyboardDownCallback(unsigned char key, int x, int y){
 	printf("keyboard down %d\n", key);
+
+	keyboardState.keyDown[key] = true;
 
 	if (UIElem::focus){
 		int keyMods = glutGetModifiers();
@@ -266,30 +162,33 @@ void App::keyboardDown(int key, int x, int y){
 	}
 }
 
-void App::keyboardUp(int key, int x, int y){
-	//nothing so far
+void keyboardUpCallback(unsigned char key, int x, int y){
+	keyboardState.keyDown[key] = false;
 }
 
-void App::specialDown(int key, int x, int y){
+void specialDownCallback(int key, int x, int y){
 	printf("keyboard special down %d\n", key);
+
+	keyboardState.specialDown[key] = true;
 
 	if (UIElem::focus){
 		UIElem::focus->onControlKey(key);
 	}
 }
 
-void App::specialUp(int key, int x, int y){
+void specialUpCallback(int key, int x, int y){
+	keyboardState.specialDown[key] = false;
 }
 
-void App::mouseButton(int key, int state, int x, int y){
-	printf("mouse button %d, %d, on %s\n", key, state, demangledTypeName(elemHover).c_str());
-	mouse.set(x, y);
+void mouseButtonCallback(int key, int state, int x, int y){
+	printf("mouseInfo.mouse button %d, %d, on %s\n", key, state, demangledTypeName(UIElem::hover).c_str());
+	mouseInfo.mouse.set(x, y);
 
 	switch(key){
 		case GLUT_LEFT_BUTTON:{
 			//place focus on element
 			if (state == GLUT_DOWN){
-				UIElem::focus = elemHover;
+				UIElem::focus = UIElem::hover;
 			}
 
 			//note the lack of break
@@ -297,23 +196,24 @@ void App::mouseButton(int key, int state, int x, int y){
 		case GLUT_MIDDLE_BUTTON:
 		case GLUT_RIGHT_BUTTON: {
 			if (state == GLUT_DOWN){
-				mouseDown[key] = true;
-				mouseButtonDownOn[key] = elemHover;
-				mouseButtonDownAt[key] = mouse;
+				mouseInfo.mouseDown[key] = true;
+				mouseInfo.mouseButtonDownOn[key] = UIElem::hover;
+				mouseInfo.mouseButtonDownAt[key] = mouseInfo.mouse;
 
-				if (elemHover){
-					elemHover->onMouseDown(mouse, key);
+				if (UIElem::hover){
+					UIElem::hover->onMouseDown(mouseInfo.mouse, key);
 				}
 			}
 
 			else{ //GLUT_UP
-				if (mouseDown[key]){
-					mouseDown[key] = false;
-					mouseButtonDownOn[key] = nullptr;
+				if (mouseInfo.mouseDown[key]){
+					mouseInfo.mouseDown[key] = false;
 
-					if (elemHover){
-						elemHover->onMouseUp(mouse, key);
+					if (UIElem::hover and UIElem::hover == mouseInfo.mouseButtonDownOn[key]){
+						UIElem::hover->onMouseUp(mouseInfo.mouse, key);
 					}
+
+					mouseInfo.mouseButtonDownOn[key] = nullptr;
 				}
 			}
 
@@ -322,8 +222,8 @@ void App::mouseButton(int key, int state, int x, int y){
 
 		case 3:{ //wheel up
 			if (state == GLUT_DOWN){
-				if (elemHover){
-					elemHover->onWheel(mouse, 1);
+				if (UIElem::hover){
+					UIElem::hover->onWheel(mouseInfo.mouse, 1);
 				}
 			}
 
@@ -332,8 +232,8 @@ void App::mouseButton(int key, int state, int x, int y){
 
 		case 4:{ //wheel down
 			if (state == GLUT_DOWN){
-				if (elemHover){
-					elemHover->onWheel(mouse, -1);
+				if (UIElem::hover){
+					UIElem::hover->onWheel(mouseInfo.mouse, -1);
 				}
 			}
 
@@ -342,35 +242,31 @@ void App::mouseButton(int key, int state, int x, int y){
 	}
 }
 
-//this is used for both active (with button held) and passive mouse motion
-void App::mouseMotion(int x, int y){
-	oldMouse = mouse;
-	mouse.set(x, y);
+//this is used for both active (with button held) and passive mouseInfo.mouse motion
+void mouseMotionCallback(int x, int y){
+	mouseInfo.oldMouse = mouseInfo.mouse;
+	mouseInfo.mouse.set(x, y);
 
-	elemHover = stateElems[state]->collides(mouse);
+	UIElem::hover = Screen::screens[state]->rootUI->collides(mouseInfo.mouse);
 	
 	for (int key = 0; key < 3; key++){
-		if (mouseDown[key]){
-			if (mouseButtonDownOn[key]){
-				mouseButtonDownOn[key]->onMouseDrag(mouse, mouseButtonDownAt[key], key);
+		if (mouseInfo.mouseDown[key]){
+			if (mouseInfo.mouseButtonDownOn[key]){
+				mouseInfo.mouseButtonDownOn[key]->onMouseDrag(mouseInfo.mouse, mouseInfo.mouseButtonDownAt[key], key);
 			}
 		}
 	}
 }
 
-void App::idle(){
-	//cap framerate to 60
-	unsigned int start = timeMilli();
+void updateCallback(int data){
+	int currentTime = glutGet(GLUT_ELAPSED_TIME);
 	glutPostRedisplay();
-	unsigned int drawDuration = timeMilli() - start;
-	
-	if (drawDuration < 17){
-		#ifdef UNIX_LIKE
-		usleep
-		#else
-		Sleep
-		#endif
-		((17 - drawDuration) * 1000);
-	}
-}
 
+	if (keyboardState.keyDown[0x1B]){
+		//quit gracefully
+		glutLeaveMainLoop();
+	}
+
+	//schedule a new update
+	glutTimerFunc(500, updateCallback, 0);
+}

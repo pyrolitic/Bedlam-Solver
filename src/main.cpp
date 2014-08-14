@@ -1,65 +1,29 @@
-#include <cstdlib>
-#include <cstdio>
-
-#include <GL/glew.h>
-#include <GL/freeglut.h>
-#include <GL/glu.h>
-
 #include "app.h"
 
 //statics
 GLuint Texture::boundTexture = 0;
-Texture* TextRender::tex = nullptr;
+GLuint Shader::boundProgram = 0;
+
+Texture* TextRender::fontTexture = nullptr;
+
+uiVert Frame::verts[36];
 Texture* Frame::roundedBox = nullptr;
+
+std::vector<uiVert> TextInput::caretVerts;
+
+UIElem* UIElem::hover = nullptr;
 UIElem* UIElem::focus = nullptr;
-App* app;
-
-//sadly freeglut requires plain function pointers (with no class context) for callbacks, so it's a bit messy
-void reshapeCallback(int w, int h){
-	app->reshape(w, h);
-}
-
-void displayCallback(){
-	app->update();
-}
-
-void keyboardDownCallback(uint8_t key, int x, int y){
-	app->keyboardDown(key, x, y);
-}
-
-void keyboardUpCallback(uint8_t key, int x, int y){
-	app->keyboardUp(key, x, y);
-}
-
-void specialDownCallback(int key, int x, int y){
-	app->specialDown(key, x, y);
-}
-
-void specialUpCallback(int key, int x, int y){
-	app->specialUp(key, x, y);
-}
-
-void mouseButtonCallback(int key, int state, int x, int y){
-	app->mouseButton(key, state, x, y);
-}
-
-void mouseMotionCallback(int x, int y){
-	app->mouseMotion(x, y);
-}
-
-void idleCallback(){
-	app->idle();
-}
-
 
 int main(int argc, char** argv){
 	glutInit(&argc, argv);
-	//glutInitContextVersion (1, 1);
+	glutInitContextVersion (3, 3);
 	//glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
-	//glutInitContextProfile(GLUT_CORE_PROFILE);
-	app = new App();
-	app->init();
+	glutInitContextProfile(GLUT_CORE_PROFILE);
 
+	//create the main window
+	init();
+
+	//now associate these callbacks with the main window
 	glutReshapeFunc(reshapeCallback);
 	glutDisplayFunc(displayCallback);
 	glutKeyboardFunc(keyboardDownCallback);
@@ -68,10 +32,16 @@ int main(int argc, char** argv){
 	glutMouseFunc(mouseButtonCallback);
 	glutMotionFunc(mouseMotionCallback);
 	glutPassiveMotionFunc(mouseMotionCallback);
-	glutIdleFunc(idleCallback);
 
+	//clicking on the close button on the window bar will simply end the main loop
+	glutSetOption(GLUT_ACTION_ON_WINDOW_CLOSE, GLUT_ACTION_CONTINUE_EXECUTION);
+
+	//pass control to freeglut
 	glutMainLoop();
-	app->end();
 
+	printf("glut main loop ended\n");
+	end();
+
+	printf("exited cleanly\n");
 	return 0;
 }

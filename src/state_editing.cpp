@@ -1,151 +1,252 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
-#include <GL/glu.h>
 
 #include "app.h"
-#include "linear_container.h"
+#include "ui/linear_container.h"
 
-void App::discardButtonCallback(UIElem* context, vec2i at, int button){
-	if (button == GLUT_LEFT_BUTTON){
-		printf("clicked on the discard button\n");
-		//don't change anything, just discard the changes in $editPiece
-		editingHistory.clear();
-		transition(STATE_LIST_PIECES);
-		if (editingNewPiece){
-			//delete it
-			delete editedPieceParentRef;
+static const blockVert defaultBlock[] = {
+	//front
+	{{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	{{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	//back
+	{{0.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	{{0.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	//left
+	{{0.0f, 1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{0.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	{{0.0f, 1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{0.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	//right
+	{{1.0f, 1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	{{1.0f, 1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	//top
+	{{0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	{{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	//bottom
+	{{0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{0.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+
+	{{0.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
+	{{1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}}
+};
+
+template<>
+void VertexArrayObject<blockVert>::setAttribPointers(){
+	glEnableVertexAttribArray(0);
+	glEnableVertexAttribArray(1);
+	glEnableVertexAttribArray(2);
+	glEnableVertexAttribArray(3);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(blockVert), (void*) (offsetof(blockVert, position)));
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(blockVert), (void*) (offsetof(blockVert, normal)));
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(blockVert), (void*) (offsetof(blockVert, tex)));
+	glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(blockVert), (void*) (offsetof(blockVert, col)));
+}
+
+EditingScreen::EditingScreen(){
+	//texture
+	uint8_t* blurred = (uint8_t*) malloc(256 * 256);
+
+	for(int j = 0; j < 256; j++){
+		float y = (float)j / 256;
+		for (int i = 0; i < 256; i++){
+			float x = (float)i / 256;
+			float dist = sqrt(x * x + y * y);
+			float coeff = cos(M_PI * dist * 0.5f);
+			blurred[i + j * 256] = (uint8_t)(std::max(0.0f, coeff * 255));
 		}
-		pieceListCheckSolvingPossiblity();
 	}
-}
 
-void App::saveButtonCallback(UIElem* context, vec2i at, int button){
-	if (button == GLUT_LEFT_BUTTON){
-		printf("clicked on the save button\n");
-		//copy the changes and change state
-		*(editedPieceParentRef->itemIt) = editedPiece; //copy back
-		editingHistory.clear();
-		transition(STATE_LIST_PIECES);
-		pieceListCheckSolvingPossiblity();
+	blurredBlob = new Texture(1, GL_UNSIGNED_BYTE, 256, 256, blurred, GL_LINEAR, GL_LINEAR, anisoLevel);
+	free(blurred);
+
+	//mesh
+	blocksVAO = new VertexArrayObject<blockVert>();
+	singleBlockVAO = new VertexArrayObject<blockVert>();
+	gridVAO = new VertexArrayObject<blockVert>();
+
+	blockVert* v = new blockVert[24];
+	memcpy(v, defaultBlock, 24 * sizeof(blockVert));
+	for (int i = 0; i < 24; i++){
+		const uint8_t c[] = {0xB2, 0x66, 0x66, 0x7F};
+		memcpy(v[i].col, c, 4);
 	}
-}
-
-void App::undoButtonCallback(UIElem* context, vec2i at, int button){
-	if (button == GLUT_LEFT_BUTTON){
-		printf("clicked on the undo button\n");
-		/*if (editingHistoryCurrentStep != editingHistory.end()){
-			const pieceChange& step = *editingHistoryCurrentStep;
-			if (step.removal){
-				editedPiece.insert(step.at);
-			}
-			else{
-				editedPiece.remove(step.at);
-			}
-
-			auto prev = std::prev(editingHistoryCurrentStep);
-			if (prev != editingHistory.end()){
-				editingHistoryCurrentStep = prev;
-			}
-		}*/
-		if (editingHistory.size() != 0){
-			const pieceChange& step = editingHistory.back();
-			if (step.removal){
-				editedPiece.insert(step.at);
-			}
-			else{
-				editedPiece.remove(step.at);
-			}
-
-			editingHistory.pop_back();
-
-			if (editingHistory.size() == 0){
-				undoButton->setColor(0.3f, 0.3f, 0.3f, 1.0f);
-			}
-		}
-	}
-}
-
-void App::editingInit(){
+	singleBlockVAO->assign(24, v);
+	delete [] v;
+	
 	//UI
-	editingCameraControl = new CameraControl();
-	stateElems[STATE_EDIT_PIECE] = editingCameraControl;
+	cameraControl = new CameraControl();
+	rootUI = (UIElem*) cameraControl;
+	cameraControl->bindMouseMove(this, &EditingScreen::mouseMoveCallback);
+	cameraControl->bindMouseDrag(this, &EditingScreen::mouseDragCallback);
 
-	discardButton = new Button(vec2i(0, 0), (char*)"discard", &App::discardButtonCallback);
-	saveButton = new Button(vec2i(80, 0), (char*)"save", &App::saveButtonCallback);
-	undoButton = new Button(vec2i(130, 0), (char*)"undo", &App::undoButtonCallback);
+	discardButton = new Button((char*)"discard");
+	discardButton->bindMouseUp(this, &EditingScreen::discardButtonCallback);
+	discardButton->setColor(DISCARD_BUTTON_COLOR);
 
-	LinearContainer* layout = new LinearContainer(vec2i(0, 0), LINEAR_CONTAINER_HORIZONTAL);
+	saveButton = new Button((char*)"save");
+	saveButton->bindMouseUp(this, &EditingScreen::saveButtonCallback);
+	saveButton->setColor(SAVE_BUTTON_COLOR);
+
+	undoButton = new Button((char*)"undo");
+	undoButton->bindMouseUp(this, &EditingScreen::undoButtonCallback);
+	undoButton->setColor(UNDO_BUTTON_INACTIVE_COLOR);
+
+	Frame* buttonFrame = new Frame();
+	buttonFrame->setPosition(vec2i(20, 20));
+
+	LinearContainer* layout = new LinearContainer(LINEAR_CONTAINER_HORIZONTAL);
 	layout->addChild(discardButton);
 	layout->addChild(saveButton);
 	layout->addChild(undoButton);
 
-	discardButton->setColor(0.7f, 0.5f, 0.5f);
-	saveButton->setColor(0.5f, 0.5f, 0.7f);
-	undoButton->setColor(0.4f, 0.5f, 0.2f);
+	buttonFrame->addChild(layout);
+	rootUI->addChild(buttonFrame);
 
-	//editorFrame = new Frame(vec2i(560, 10), layout->getSize() + 2 * vec2i(FRAME_ROUNDED_RADIUS));
-	//editorFrame->addChild(layout);
-	stateElems[STATE_EDIT_PIECE]->addChild(layout);//editorFrame);
+	//debug
+	LinearContainer* debugList = new LinearContainer(LINEAR_CONTAINER_VERTICAL);
+	rootUI->addChild(debugList);
+
+	eyeLabel = new Label();
+	mouseRayLabel = new Label();
+	cameraAngleLabel = new Label();
+
+	debugList->addChild(eyeLabel);
+	debugList->addChild(mouseRayLabel);
+	debugList->addChild(cameraAngleLabel);
 
 	//state
-	editedPieceParentRef = nullptr;
+	parentRef = nullptr;
 }
 
-void App::editingUpdate(){
-	//set up perspective projection
-	double projMatrix[16];
+EditingScreen::~EditingScreen(){
+	delete blurredBlob;
+	delete blocksVAO;
+}
 
-	glMatrixMode(GL_PROJECTION);
-	glLoadIdentity();
-	gluPerspective(80.0, (double)width / (double)height, 1e-2, 1e3);
-	glGetDoublev(GL_PROJECTION_MATRIX, projMatrix);
+void EditingScreen::transitionWithPiece(listPieceEntry* ref, bool pieceIsNew){
+	parentRef = ref;
+	tempPiece = *(ref->itemIt); //copy
+	newPiece = pieceIsNew;
 
-	glMatrixMode(GL_MODELVIEW);
-	glLoadIdentity();
+	state = STATE_EDIT_PIECE;
+	cleanInput();
+}
 
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS); //normal
 
-	glEnable(GL_TEXTURE_2D);
-	glDisable(GL_BLEND);
+void EditingScreen::discardButtonCallback(UIElem* context, vec2i at, int button){
+	if (button == GLUT_LEFT_BUTTON){
+		printf("clicked on the discard button\n");
+		//don't change anything, just discard the changes in $editPiece
+		history.clear();
+		if (newPiece){
+			//delete it
+			delete parentRef;
+		}
 
-	editingCameraEye = editingCameraControl->getEyePosition();
-	gluLookAt(editingCameraEye.x, editingCameraEye.y, editingCameraEye.z,
-	          0.0, 0.0, 0.0,  //target
-	          0.0, 1.0, 0.0); //up
-
-	double modelViewMatrix[16];
-	glGetDoublev(GL_MODELVIEW_MATRIX, modelViewMatrix);
-
-	int viewport[4];
-	glGetIntegerv(GL_VIEWPORT, viewport);
-
-	//compute camera to scene ray in world space
-	double rayStartX, rayStartY, rayStartZ;
-	double rayEndX, rayEndY, rayEndZ;
-	gluUnProject(mouse.x, height - mouse.y, 0.0f, modelViewMatrix, projMatrix, viewport, &rayStartX, &rayStartY, &rayStartZ);
-	gluUnProject(mouse.x, height - mouse.y, 1.0f, modelViewMatrix, projMatrix, viewport, &rayEndX, &rayEndY, &rayEndZ);
-	mouseRayDir = (vec3(rayEndX, rayEndY, rayEndZ) - vec3(rayStartX, rayStartX, rayStartZ)).normal();
-
-	//3d view
-	//intersect the mouse ray with the piece matter
-	if (mouse != oldMouse) checkRayCollision = true;
-
-	if (checkRayCollision){
-		editorCollision = editedPiece.collisionCheck(editingCameraEye, mouseRayDir, lastCollision);
-		checkRayCollision = false;
+		PieceListScreen::getInstance().transition();
 	}
+}
 
-	if (editorCollision){
+void EditingScreen::saveButtonCallback(UIElem* context, vec2i at, int button){
+	if (button == GLUT_LEFT_BUTTON){
+		printf("clicked on the save button\n");
+		//copy the changes and change state
+		*(parentRef->itemIt) = tempPiece; //copy back
+		history.clear();
+
+		PieceListScreen::getInstance().transition();
+	}
+}
+
+void EditingScreen::undoButtonCallback(UIElem* context, vec2i at, int button){
+	if (button == GLUT_LEFT_BUTTON){
+		printf("clicked on the undo button\n");
+
+		if (!history.empty()){
+			const pieceChange& step = history.back();
+			if (step.removal){
+				tempPiece.insert(step.at);
+			}
+			else{
+				tempPiece.remove(step.at);
+			}
+
+			history.pop_back();
+
+			if (history.empty()){
+				undoButton->setColor(UNDO_BUTTON_INACTIVE_COLOR);
+			}
+		}
+	}
+}
+
+void EditingScreen::mouseUpCallback(UIElem* context, vec2i at, int button){
+	if (collision){
+		if (button == GLUT_LEFT_BUTTON){
+			printf("adding block at (%d %d %d)\n", extrudedBlock.x, extrudedBlock.y, extrudedBlock.z);
+			tempPiece.insert(extrudedBlock);
+			history.emplace_back(false, extrudedBlock);
+			rebuildBlockVAO();
+
+			undoButton->setColor(UNDO_BUTTON_ACTIVE_COLOR);
+			checkCollision();
+		}
+
+		else if (button == GLUT_RIGHT_BUTTON){
+			printf("removing block at (%d %d %d)\n", lastCollision.block.x, lastCollision.block.y, lastCollision.block.z);
+			tempPiece.remove(lastCollision.block);
+			history.emplace_back(true, lastCollision.block);
+			rebuildBlockVAO();
+
+			undoButton->setColor(UNDO_BUTTON_ACTIVE_COLOR);
+			checkCollision();
+		}
+	}
+}
+
+void EditingScreen::checkCollision(){
+	collision = tempPiece.collisionCheck(cameraEye, mouseRayDir, lastCollision);
+	tooFar = false; //limit additions to EDITING_MAX_DIST_BLOCK
+
+	if (collision){
 		//offset the block from its source depending on which side it's being extruded coming from
 		extrudedBlock = lastCollision.block;
 		extrudedBlock.data[lastCollision.side >> 1] += ((lastCollision.side & 1) == 0)? -1 : 1;
 	}
 	else{
-		//no collision, so intersect mouse ray with the grid
-		float h = /*editingLayer*/ - editingCameraEye.y;
-		vec3 gridRayPoint = editingCameraEye + mouseRayDir * (h / mouseRayDir.y);
+		//no collision, so intersect mouseInfo.mouse ray with the grid
+		float h = /*editingLayer*/ - cameraEye.y;
+		vec3 gridRayPoint = cameraEye + mouseRayDir * (h / mouseRayDir.y);
 
 		int gpx = floor(gridRayPoint.x);
 		int gpz = floor(gridRayPoint.z);
@@ -155,27 +256,68 @@ void App::editingUpdate(){
 		extrudedBlock.z = gpz;
 	}
 
-	if (mouseDown[GLUT_LEFT_BUTTON] and !lastMouseDown[GLUT_LEFT_BUTTON]){
-		printf("adding block at (%d %d %d)\n", extrudedBlock.x, extrudedBlock.y, extrudedBlock.z);
-		editedPiece.insert(extrudedBlock);
-		editingHistory.emplace_back(false, extrudedBlock);
+	if (!(extrudedBlock.abs() < vec3i(EDITING_MAX_DIST_BLOCK))){
+		tooFar = true;
+	}
+}
 
-		if (editingHistory.size() == 1){
-			undoButton->setColor(0.4f, 0.5f, 0.2f);
+void EditingScreen::mouseMoveCallback(UIElem* context, vec2i to){
+	//check for mouse ray collision against the blocks
+	mat4 invPVM = (projection * modelView).inverse();
+	vec3f far = invPVM * vec3f((2.0f * to.x) / windowResolution.x - 1.0f,
+	                           (2.0f * to.y) / windowResolution.y - 1.0f, 
+	                           (2 * 1.0f) - 1.0f);
+	mouseRayDir = (cameraEye - far).normal();
+	checkCollision();
+}
+
+void EditingScreen::mouseDragCallback(UIElem* context, vec2i from, vec2i to, int button){
+	cameraEye = cameraControl->getEyePosition();
+	modelView = mat4::viewLookAt(cameraEye, vec3f(0.0f), vec3f(0.0f, 1.0f, 0.0f));
+}
+
+void EditingScreen::rebuildBlockVAO(){
+	int count = tempPiece.mass();
+	blockVert* buf = new blockVert[count * 6 * 6]; //for every of the 6 faces there must be two triangles
+	blockVert* v = buf;
+
+	for (auto block : tempPiece.getBlocks()){
+		const vec3i& pos = block.first;
+		memcpy(v, defaultBlock, sizeof(defaultBlock));
+		for (int i = 0; i < 6; i++){
+			v[i].position += vec3f(pos);
+
+			if (pos == lastCollision.block and collision){
+				const uint8_t c[] = {0x7F, 0xE5, 0x7F, 0xFF};
+				memcpy(v[i].col, c, 4);
+			} 
+			else{
+				const uint8_t c[] = {0x7F, 0x7F, 0xE5, 0xFF};
+				memcpy(v[i].col, c, 4);
+			}
 		}
-	}
 
-	else if (mouseDown[GLUT_RIGHT_BUTTON] and !lastMouseDown[GLUT_RIGHT_BUTTON] and editorCollision){
-		printf("removing block at (%d %d %d)\n", lastCollision.block.x, lastCollision.block.y, lastCollision.block.z);
-		editedPiece.remove(lastCollision.block);
-		editingHistory.emplace_back(true, lastCollision.block);
+		v += 6;
 	}
+}
 
+
+
+void EditingScreen::update(){
+	//set up perspective projection
+	projection = mat4::perspectiveProjection(80.0f, (float)windowResolution.x / (float)windowResolution.y, 1e-2f, 1e3f);
+
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LESS); //normal
+	glDisable(GL_BLEND);
+
+	//3d view
 	int gridCenterX, gridCenterZ;
 	gridCenterX = extrudedBlock.x;
 	gridCenterZ = extrudedBlock.z;
 
-	//draw the grid
+	/*//draw the grid
 	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
 	glLineWidth(2.0f);
 
@@ -183,64 +325,52 @@ void App::editingUpdate(){
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
 
-	glEnable(GL_BLEND);
-	glBegin(GL_LINES);
+	if (!collision and !tooFar){
+		glEnable(GL_BLEND);
+		glBegin(GL_LINES);
 
-	for (int i = -FLOATING_GRID_EXTENT; i < FLOATING_GRID_EXTENT; i++){
-		int gx = gridCenterX + i;
-		int gz0 = gridCenterZ - FLOATING_GRID_EXTENT;
-		int gz1 = gridCenterZ + FLOATING_GRID_EXTENT;
+		for (int i = -FLOATING_GRID_EXTENT; i < FLOATING_GRID_EXTENT; i++){
+			int gx = gridCenterX + i;
+			int gz0 = gridCenterZ - FLOATING_GRID_EXTENT;
+			int gz1 = gridCenterZ + FLOATING_GRID_EXTENT;
 
-		glTexCoord2f((i + 0.0f) / FLOATING_GRID_EXTENT, -1.0f); glVertex3i(gx, 0 /*editingLayer*/, gz0);
-		glTexCoord2f((i + 0.0f) / FLOATING_GRID_EXTENT,  1.0f); glVertex3i(gx, 0 /*editingLayer*/, gz1);
-	}
+			glTexCoord2f((i + 0.0f) / FLOATING_GRID_EXTENT, -1.0f); glVertex3i(gx, 0, gz0);
+			glTexCoord2f((i + 0.0f) / FLOATING_GRID_EXTENT,  1.0f); glVertex3i(gx, 0, gz1);
+		}
 
-	for (int i = -FLOATING_GRID_EXTENT; i < FLOATING_GRID_EXTENT; i++){
-		int gx0 = gridCenterX - FLOATING_GRID_EXTENT;
-		int gx1 = gridCenterX + FLOATING_GRID_EXTENT;
-		int gz = gridCenterZ + i;
+		for (int i = -FLOATING_GRID_EXTENT; i < FLOATING_GRID_EXTENT; i++){
+			int gx0 = gridCenterX - FLOATING_GRID_EXTENT;
+			int gx1 = gridCenterX + FLOATING_GRID_EXTENT;
+			int gz = gridCenterZ + i;
 
-		glTexCoord2f(-1.0f, (i + 0.0f) / FLOATING_GRID_EXTENT); glVertex3i(gx0, 0 /*editingLayer*/, gz);
-		glTexCoord2f( 1.0f, (i + 0.0f) / FLOATING_GRID_EXTENT); glVertex3i(gx1, 0 /*editingLayer*/, gz);
-	}
+			glTexCoord2f(-1.0f, (i + 0.0f) / FLOATING_GRID_EXTENT); glVertex3i(gx0, 0, gz);
+			glTexCoord2f( 1.0f, (i + 0.0f) / FLOATING_GRID_EXTENT); glVertex3i(gx1, 0, gz);
+		}
 
-	glEnd();
+		glEnd();
+	}*/
 
-	glDisable(GL_TEXTURE_2D);
-
-
-	//draw current piece, pushing the solid planes it a little back so that the lines will show, even at acute angles
+	//draw current piece, pushing the solid planes back a little so that the lines will show, even at acute angles
 	glEnable(GL_POLYGON_OFFSET_FILL);
 	glPolygonOffset(1.0f, 1.0f);
-
-	glBegin(GL_QUADS);
-	for (auto pair : editedPiece.blocks){
-		const vec3i& b = pair.first;
-		if (b == lastCollision.block and editorCollision) glColor4f(0.5f, 0.9f, 0.5f, 1.0f);
-		else glColor4f(0.5f, 0.5f, 0.9f, 1.0f);
-		drawCube(b.x, b.y, b.z);
-	}
-	glEnd();
+	//draw solid cubes
 	glDisable(GL_POLYGON_OFFSET_FILL);
+	//draw lines
+	glEnd();
 
-	glLineWidth(3.0f);
-	glBegin(GL_LINES);
-	for (auto pair : editedPiece.blocks){
-		const vec3i& b = pair.first;
-		if (b == lastCollision.block and editorCollision) glColor4f(0.7f, 0.9f, 0.7f, 1.0f);
-		else glColor4f(0.7f, 0.7f, 0.9f, 1.0f);
-		drawCubeOutlines(b.x, b.y, b.z);
+	if (!tooFar){
+		//also draw the extruded block
+		glEnable(GL_BLEND);
+		glBegin(GL_QUADS);
+		glColor4f(0.7f, 0.4f, 0.4f, 0.5f);
+		glTranslatef(extrudedBlock.x, extrudedBlock.y, extrudedBlock.z);
+		glutSolidCube(1.0);
+		glTranslatef(-extrudedBlock.x, -extrudedBlock.y, -extrudedBlock.z);
+		glEnd();
 	}
-	glEnd();
 
-	//also draw the extruded block
-	glEnable(GL_BLEND);
-	glBegin(GL_QUADS);
-	glColor4f(0.7f, 0.4f, 0.4f, 0.5f);
-	drawCube(extrudedBlock.x, extrudedBlock.y, extrudedBlock.z);
 
-	glEnd();
-
+	/*
 	//origin arrows, x-ray
 	glDisable(GL_DEPTH_TEST);
 	//glDepthFunc(GL_ALWAYS);
@@ -258,27 +388,22 @@ void App::editingUpdate(){
 	glTexCoord2f(0.0f, 0.0f); glVertex3f(0.0f, 0.0f, 0.0f);
 	glTexCoord2f(1.0f, 1.0f); glVertex3f(0.0f, 0.0f, 1.0f);
 	glEnd();
-	CHECK_GL_ERROR
-}
+	CHECK_GL_ERROR*/
 
-void App::editingOverlay(){
+	//debug info
 	const int labelBufLength = 256;
 	char labelBuf[labelBufLength];
-	int metricW, metricH;
-
-	glColor4f(1.0f, 1.0f, 0.5f, 1.0f);
 
 	//eye position
-	sprintf(labelBuf, "eye at (%.3f, %.3f, %.3f)", editingCameraEye.x, editingCameraEye.y, editingCameraEye.z);
-	TextRender::render(labelBuf, 10, height - 80);
+	snprintf(labelBuf, labelBufLength, "eye at (%.3f, %.3f, %.3f)", cameraEye.x, cameraEye.y, cameraEye.z);
+	eyeLabel->setText(labelBuf);
 
-	//mouse ray dir position
-	sprintf(labelBuf, "mouse dir (%.3f, %.3f, %.3f)", mouseRayDir.x, mouseRayDir.y, mouseRayDir.z);
-	TextRender::render(labelBuf, 10, height - 60);
+	//mouseInfo.mouse ray dir position
+	snprintf(labelBuf, labelBufLength, "mouseInfo.mouse dir (%.3f, %.3f, %.3f)", mouseRayDir.x, mouseRayDir.y, mouseRayDir.z);
+	mouseRayLabel->setText(labelBuf);
 
 	//camera rotation
-	vec3f turnDiveDist = editingCameraControl->getTurnDiveDist();
-	sprintf(labelBuf, "turn %.2f, dive %.2f", turnDiveDist.x, turnDiveDist.y);
-	TextRender::render(labelBuf, 10, height - 40);
+	vec3f turnDiveDist = cameraControl->getTurnDiveDist();
+	snprintf(labelBuf, labelBufLength, "turn %.2f, dive %.2f", turnDiveDist.x, turnDiveDist.y);
+	cameraAngleLabel->setText(labelBuf);
 }
-

@@ -6,21 +6,17 @@
 
 #include <GL/glew.h>
 
-#include "gl_error.h"
-
 class Texture{
 public:
 	Texture(){
 		glGenTextures(1, &id);
-		internal = format = type = min = mag = w = h = 0;
+		channels = type = min = mag = w = h = 0;
 	}
 
-	Texture(GLenum internalFormat, GLenum sourceFormat, GLenum sourceType, int width, int height, void* data = NULL, GLenum minMode = GL_NEAREST, GLenum magMode = GL_NEAREST, float anisotropyLevel = 1.0f){
+	Texture(int channels, GLenum sourceType, int width, int height, void* data = nullptr, GLenum minMode = GL_NEAREST, GLenum magMode = GL_NEAREST, float anisotropyLevel = 1.0f){
 		glGenTextures(1, &id);
-		updateData(internalFormat, sourceFormat, sourceType, width, height, data);
+		updateData(channels, sourceType, width, height, data);
 		updateAccessMode(minMode, magMode, anisotropyLevel);
-
-		CHECK_GL_ERROR
 	}
 	
 	~Texture(){
@@ -35,24 +31,21 @@ public:
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, min);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, mag);
 		glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAX_ANISOTROPY_EXT, anisotropyLevel);
-
-		CHECK_GL_ERROR
 	}
 	
-	void updateData(GLenum internalFormat, GLenum sourceFormat, GLenum sourceType, int width, int height, void* data){
+	void updateData(int channels, GLenum sourceType, int width, int height, void* data){
 		assert(width >= 64 and height >= 64); //gl spec requires this
+		assert(channels >= 1 and channels <= 4);
 	
-		internal = internalFormat;
-		format = sourceFormat;
+		GLenum format = channelsToFormat(channels);
 		type = sourceType;
 		
 		w = width;
 		h = height;
 	
 		bind();
-		//glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, w, h, 0, sourceFormat, sourceType, data);
-		gluBuild2DMipmaps(GL_TEXTURE_2D, internalFormat, w, h, sourceFormat, sourceType, data);
-		GLerror::list("texture_update");
+		glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, format, sourceType, data);
+		//gluBuild2DMipmaps(GL_TEXTURE_2D, internalFormat, w, h, sourceFormat, sourceType, data);
 	}
 	
 	void updateSubData(int dataWidth, int dataHeight, int offsetX, int offsetY, void* data){
@@ -61,8 +54,8 @@ public:
 		assert (offsetX + dataWidth <= w and offsetY + dataHeight <= h);
 		
 		bind();
+		GLenum format = channelsToFormat(channels);
 		glTexSubImage2D(GL_TEXTURE_2D, 0, offsetX, offsetY, dataWidth, dataHeight, format, type, data);
-		GLerror::list("texutre_sub_update");
 	}
 	
 	void bind(){
@@ -71,7 +64,6 @@ public:
 			boundTexture = id;
 			glBindTexture(GL_TEXTURE_2D, id);
 		//}
-		GLerror::list("texure_bind");
 	}
 	
 	static void unBind(){
@@ -94,11 +86,21 @@ public:
 	}
 	
 private:
+	static GLenum channelsToFormat(int channels){
+		assert(channels >= 1 and channels <= 4);
+		const GLenum channelsToFormatTable[] = {
+			[1] = GL_RED,
+			[2] = GL_RG,
+			[3] = GL_RGB,
+			[4] = GL_RGBA
+		};
+		return channelsToFormatTable[channels];
+	}
+
 	static GLuint boundTexture; //= 0 for no texture
 
 	GLuint id;
-	GLenum internal; //internal format
-	GLenum format; //source format
+	int channels;
 	GLenum type; //source type
 	
 	//access modes

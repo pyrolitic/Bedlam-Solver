@@ -7,6 +7,8 @@
 
 #include <functional>
 
+#include "vec2.h"
+
 class quat;
 
 template<typename T>
@@ -34,13 +36,14 @@ class vec3Templated {
 			z = zz;
 		}
 
-		/*vec3Templated<T>(const vec2& v, T zz) {
+		vec3Templated<T>(const vec2Templated<T>& v, T zz) {
 			x = v.x;
 			y = v.y;
 			z = zz;
-		}*/
+		}
 
-		vec3Templated(const vec3Templated<T>& v) {
+		template<class S>
+		vec3Templated(const vec3Templated<S>& v) {
 			x = v.x;
 			y = v.y;
 			z = v.z;
@@ -111,6 +114,11 @@ class vec3Templated {
 		}
 
 		//get
+		template<class S>
+		operator vec3Templated<S>(){
+			return vec3Templated<S>((S)x, (S)y, (S)z);
+		}
+
 		T length() {
 			return sqrt(sqrLength());
 		}
@@ -135,8 +143,8 @@ class vec3Templated {
 			a.normalize();
 			return a;
 		}
-		vec3Templated<T> abs(const vec3Templated<T>& v) {
-			return vec3Templated<T>(fabs(v.x), fabs(v.y), fabs(v.z));
+		vec3Templated<T> abs() {
+			return vec3Templated<T>(fabs(x), fabs(y), fabs(z));
 		}
 
 		vec3Templated<T> operator +(const vec3Templated<T>& v2) const {

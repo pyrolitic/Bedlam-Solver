@@ -8,45 +8,56 @@
 #include <GL/glew.h>
 
 #include "texture.h"
+#include "vertex_array_object.h"
 
 extern const uint8_t fontBitmapData[];
 
-//TODO: revamp to add atalses, support for fonts
-
 class TextRender{
 public:
-	//translate and scale to taste beforehand
-	static void render(const char* text, int xOffset, int yOffset){
-		assert(tex);
+	//TODO: line wrapping
+	static void prepare(std::vector<uiVert>& cache, vec2i& size, const char* text, float maxWidth = 0.0f){
+		assert(fontTexture);
 		assert(text);
 
-		glEnable(GL_BLEND);
-		glEnable(GL_TEXTURE_2D);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		cache.clear();
+		int len = strlen(text);
 
-		glActiveTexture(GL_TEXTURE0);
-		tex->bind();
-		
-		glBegin(GL_QUADS);
-	
-		const uint8_t* c = (const uint8_t*) text;
-		int x = 0;
-		while (*c){
-			int w = (*c & 0xF);
-			int h = (*c >> 4);
-		
-			glMultiTexCoord2f(GL_TEXTURE0, (w+0) / 16.0f, (h+0) / 16.0f); glVertex2i(xOffset + x,                    yOffset);
-			glMultiTexCoord2f(GL_TEXTURE0, (w+1) / 16.0f, (h+0) / 16.0f); glVertex2i(xOffset + x + bitmapGlyphWidth, yOffset);
-			glMultiTexCoord2f(GL_TEXTURE0, (w+1) / 16.0f, (h+1) / 16.0f); glVertex2i(xOffset + x + bitmapGlyphWidth, yOffset + bitmapGlyphHeight);
-			glMultiTexCoord2f(GL_TEXTURE0, (w+0) / 16.0f, (h+1) / 16.0f); glVertex2i(xOffset + x,                    yOffset + bitmapGlyphHeight);
-		
-			x += bitmapGlyphWidth;
-			c++;
+		vec2f pen(0.0f, 0.0f);
+		for (int i = 0; i < len; i++){
+			uint8_t c = (uint8_t) text[i];
+			int w = c & 0xF;
+			int h = c >> 4;
+
+			uiVert triangles[6];
+
+			triangles[0].pos.set(pen.x,                    pen.y);
+			triangles[0].tex.set((w+0) / 16.0f, (h+0) / 16.0f);
+
+			triangles[1].pos.set(pen.x + bitmapGlyphWidth, pen.y);
+			triangles[1].tex.set((w+1) / 16.0f, (h+0) / 16.0f);
+
+			triangles[2].pos.set(pen.x + bitmapGlyphWidth, pen.y + bitmapGlyphHeight);
+			triangles[2].tex.set((w+1) / 16.0f, (h+1) / 16.0f);
+
+			triangles[3].pos = triangles[0].pos;
+			triangles[3].tex = triangles[0].tex;
+
+			triangles[4].pos = triangles[2].pos;
+			triangles[4].tex = triangles[2].tex;
+
+			triangles[5].pos.set(pen.x,                    pen.y + bitmapGlyphHeight);
+			triangles[5].tex.set((w+0) / 16.0f, (h+1) / 16.0f);
+
+			pen.x += bitmapGlyphWidth;
+
+			cache.insert(cache.end(), triangles, triangles + 6);
 		}
-	
-		glEnd();
-		Texture::unBind();
-		glDisable(GL_BLEND);
+
+		size.set(pen.x, bitmapGlyphHeight);
+	}
+
+	static Texture* getFontTexture(){
+		return fontTexture;
 	}
 
 	static void metrics(const char* text, int* w, int* h){
@@ -85,19 +96,23 @@ public:
 		return charId;
 	}
 
-	static void init(){
-		//font texture
-		tex = new Texture(GL_ALPHA8, GL_ALPHA, GL_UNSIGNED_BYTE, bitmapWidth, bitmapHeight, (void*)fontBitmapData, GL_NEAREST, GL_NEAREST);
-		printf("created font texture\n");
-	}
-
 	//terrible hack, but no way to avoid it until fonts are in
 	static int getReasonableHeight(){
 		return bitmapGlyphHeight;
 	}
+
+	static void init(){
+		//font texture
+		fontTexture = new Texture(1, GL_UNSIGNED_BYTE, bitmapWidth, bitmapHeight, (void*)fontBitmapData, GL_NEAREST, GL_NEAREST);
+		printf("created font texture\n");
+	}
+
+	static void end(){
+		delete fontTexture;
+	}
 	
 private:
-	static Texture* tex;
+	static Texture* fontTexture;
 	
 	static const int bitmapWidth = 144;
 	static const int bitmapHeight = 256;

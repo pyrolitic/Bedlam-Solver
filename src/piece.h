@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <string>
 
-#include "vec3.h"
+#include "maths/vec3.h"
 
 #define axis_x 0
 #define axis_y 1
@@ -27,11 +27,20 @@ public:
 		int side; //(axis << 1) | (right == 1)
 	};
 
-	std::unordered_map<vec3i, int> blocks;
-	int copies;
-
 	Piece(){}
 	~Piece(){}
+
+	const std::unordered_map<vec3i, int>& getBlocks() const{
+		return blocks;
+	}
+
+	int getCopies(){
+		return copies;
+	}
+
+	void setCopies(int c){
+		copies = c;
+	}
 
 	int mass(){
 		return blocks.size();
@@ -47,6 +56,20 @@ public:
 
 	void remove(vec3i at){
 		blocks.erase(at);
+	}
+
+	vec3i getSize(){
+		//find the limits
+		vec3i lowest(std::numeric_limits<int>::max());
+		vec3i highest(std::numeric_limits<int>::min());
+
+		for (auto pairs : blocks){
+			const vec3i& v = pairs.first;
+			lowest = minVec(lowest, v);
+			highest = maxVec(highest, v);
+		}
+
+		return highest - lowest + vec3i(1);
 	}
 
 	//checks for the closes collision between a ray (start and dir) and any of the blocks in this piece
@@ -101,6 +124,9 @@ public:
 
 		else return false;
 	}
+
+	std::unordered_map<vec3i, int> blocks;
+	int copies;
 };
 
 #endif

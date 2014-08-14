@@ -1,108 +1,182 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
-#include <GL/glu.h>
 
 #include "app.h"
 
-extern App* app; //in main.cpp
+listPieceEntry::listPieceEntry(const std::list<Piece>::iterator& it) : Frame(), itemIt(it){
+	//leaves
+	nameEntry = new TextInput(LIST_PIECE_FRAME_WIDTH - 40, "piece name goes here");
 
-App::listPiece::listPiece(const std::list<Piece>::iterator& it) : Frame(vec2i(0, 0), vec2i(0, 0)), itemIt(it){
-	setColor(0.7f, 0.7f, 0.7f);
+	Button* editButton = new Button((char*)"edit");
+	editButton->bindMouseUp(this, &listPieceEntry::editButtonCallback);
+	editButton->setColor(EDIT_BUTTON_COLOR);
 
-	nameEntry = new TextInput(vec2i(0, 0), LIST_PIECE_FRAME_WIDTH - 40, "piece name");
-	const int separation = 10;
-	int secondLine = nameEntry->getSize().y + separation;
+	Button* deleteButton = new Button((char*)"delete");
+	deleteButton->bindMouseUp(this, &listPieceEntry::deleteButtonCallback);
+	deleteButton->setColor(DELETE_BUTTON_COLOR);
 
-	Button* editButton = new Button(vec2i(0, secondLine), (char*)"edit", &App::listPieceEditButtonCallback);
-	Button* deleteButton = new Button(vec2i(60, secondLine), (char*)"delete", &App::listPieceDeleteButtonCallback);
-	copiesCounter = new Counter(vec2i(150, secondLine), 1, 99, 1, &App::counterChangeCallback);
+	copiesCounter = new Counter(1, 99, 1);
+	copiesCounter->bindValueChange(this, &listPieceEntry::copiesCounterChangeCallback);
+	copiesCounter->setColor(COPIES_COUNTER_COLOR);
 
-	editButton->setColor(0.4f, 0.7f, 0.7f);
-	deleteButton->setColor(0.8f, 0.4f, 0.4f);
-	copiesCounter->setColor(0.4f, 0.1f, 0.6f);
+	statusLabel = new Label((char*)"");
+	statusLabel->clearFlag(UI_ACTIVE);
 
-	addChild(nameEntry);
-	addChild(editButton);
-	addChild(deleteButton);
-	addChild(copiesCounter);
+	//layout
+	LinearContainer* buttonRow = new LinearContainer(LINEAR_CONTAINER_HORIZONTAL);
+	buttonRow->addChild(editButton);
+	buttonRow->addChild(deleteButton);
+	buttonRow->addChild(copiesCounter);
 
-	setSize(vec2i(LIST_PIECE_FRAME_WIDTH, editButton->getSize().y * 2 + separation + 2 * FRAME_ROUNDED_RADIUS));
+	LinearContainer* rows = new LinearContainer(LINEAR_CONTAINER_VERTICAL);
+	rows->addChild(nameEntry);
+	rows->addChild(buttonRow);
+	rows->addChild(statusLabel);
+
+	addChild(rows);
+	setColor(LIST_PIECE_FRAME_COLOR);
+	update(); //resize accordingly
 }
 
-App::listPiece::~listPiece(){
-	app->pieces.erase(itemIt);
+listPieceEntry::~listPieceEntry(){
+	pieces.erase(itemIt);
 }
 
-void App::listPieceEditButtonCallback(UIElem* context, vec2i at, int button){
+void listPieceEntry::editButtonCallback(UIElem* context, vec2i at, int button){
 	if (button == GLUT_LEFT_BUTTON){
-		listPiece* parent = dynamic_cast<listPiece*>(context->getParent());
-		assert(parent);
-
 		//transition to editor
-		editedPieceParentRef = parent;
-		editedPiece = *(parent->itemIt); //copy data before editing
-		transition(STATE_EDIT_PIECE);
-		editingNewPiece = false;
+		EditingScreen::getInstance().transitionWithPiece(this, false);
 	}
 }
 
-void App::listPieceDeleteButtonCallback(UIElem* context, vec2i at, int button){
+void listPieceEntry::deleteButtonCallback(UIElem* context, vec2i at, int button){
 	if (button == GLUT_LEFT_BUTTON){
-		listPiece* parent = dynamic_cast<listPiece*>(context->getParent());
-		assert(parent);
-
-		elemHover = parent->getParent(); //dangling otherwise
-		UIElem::focus = elemHover; //likewise
-		delete parent;
-
-		pieceListCheckSolvingPossiblity();
+		delete this; //TODO: might be unsafe
+		PieceListScreen::getInstance().checkSolvingPossible();
 	}
 }
 
-void App::newPieceButtonCallback(UIElem* context, vec2i at, int button){
+void listPieceEntry::copiesCounterChangeCallback(Counter* context, int oldValue, int newValue){
+	PieceListScreen::getInstance().checkSolvingPossible();
+}
+
+PieceListScreen::PieceListScreen(){
+	rootUI = new UIElem();
+
+	//piece list on the left side, all the way down
+	pieceListFrame = new ScrollingFrame(500);
+	pieceListFrame->setFlag(UI_STICK_TOP_LEFT);
+
+	newPieceButton = new Button((char*)"Add new");
+	newPieceButton->setColor(ADD_NEW_BUTTON_COLOR);
+	newPieceButton->bindMouseUp(this, &PieceListScreen::newPieceButtonCallback);
+	newPieceButton->setSize(vec2i(LIST_PIECE_FRAME_WIDTH, newPieceButton->getSize().y));
+	pieceListFrame->addChild(newPieceButton);
+
+	rootUI->addChild(pieceListFrame);
+
+	//solving options on the top right
+	LinearContainer* solvingBoxRows = new LinearContainer(LINEAR_CONTAINER_VERTICAL);
+	LinearContainer* solvingBoxButtonRow = new LinearContainer(LINEAR_CONTAINER_HORIZONTAL);
+	solvingOptionsFrame = new Frame();
+	solvingOptionsFrame->setFlag(UI_STICK_TOP_RIGHT);
+
+	for (int i = 0; i < 3; i++){
+		dimCounters[i] = new Counter(1, 99, 4);
+		dimCounters[i]->bindValueChange(this, &PieceListScreen::dimensionCounterChangeCallback);
+		dimCounters[i]->setColor(COPIES_COUNTER_COLOR);
+		solvingBoxButtonRow->addChild(dimCounters[i]);
+	}
+
+	solveButton = new Button((char*)"Solve");
+	solveButton->bindMouseUp(this, &PieceListScreen::solveButtonCallback);
+	solveButton->setColor(SOLVE_BUTTON_BAD_COLOR);
+	solvingBoxButtonRow->addChild(solveButton);
+
+	solvingBoxRows->addChild(solvingBoxButtonRow);
+
+	materialStatusLabel = new Label((char*)"");
+	solvingBoxRows->addChild(materialStatusLabel);
+
+	solvingOptionsFrame->addChild(solvingBoxRows);
+	solvingOptionsFrame->update();
+	
+	rootUI->addChild(solvingOptionsFrame);
+
+	checkSolvingPossible(); //to reset the label colors
+}
+
+PieceListScreen::~PieceListScreen(){
+
+}
+
+void PieceListScreen::transition(){
+	state = STATE_LIST_PIECES;
+	cleanInput();
+}
+
+void PieceListScreen::newPieceButtonCallback(UIElem* context, vec2i at, int button){
 	if (button == GLUT_LEFT_BUTTON){
 		//create a new piece ui element
 		pieces.emplace_front();
-		listPiece* p = new listPiece(pieces.begin());
-
+		listPieceEntry* p = new listPieceEntry(pieces.begin());
 		pieceListFrame->addChildBefore(p, newPieceButton);
 
 		//transition to editor
-		editedPieceParentRef = p;
-		editedPiece = *(p->itemIt); //copy data before editing
-		transition(STATE_EDIT_PIECE);
-		editingNewPiece = true;
+		EditingScreen::getInstance().transitionWithPiece(p, true);
 	}
 }
 
-void App::solveButtonCallback(UIElem* context, vec2i at, int button){
+void PieceListScreen::solveButtonCallback(UIElem* context, vec2i at, int button){
 	if (button == GLUT_LEFT_BUTTON){
-		pieceListCheckSolvingPossiblity(); //might not be needed
+		checkSolvingPossible(); //might not be needed
+
 		if (solvingPossible){
-			vec3i worldSize(dimCounters[0]->getValue(), dimCounters[1]->getValue(), dimCounters[2]->getValue());
 			solver = new Solver(worldSize, pieces);
-			transition(STATE_SOLVE);
+			SolvingScreen::getInstance().transition();
 		}
 	}
 }
 
-void App::counterChangeCallback(Counter* context, int oldValue, int newValue){
-	pieceListCheckSolvingPossiblity();
+void PieceListScreen::dimensionCounterChangeCallback(Counter* context, int oldValue, int newValue){
+	//update worldSize
+	for (int i = 0; i < 3; i++){
+		worldSize.data[i] = dimCounters[i]->getValue();
+	}
+
+	checkSolvingPossible();
 }
 
-void App::pieceListCheckSolvingPossiblity(){
-	solvingPossible = false; //assume until proven untrue
+void PieceListScreen::checkSolvingPossible(){
+	solvingPossible = false; //assume until proven true
+	bool pieceTooLarge = false;
 
 	vec3i worldSize(dimCounters[0]->getValue(), dimCounters[1]->getValue(), dimCounters[2]->getValue());
 	int worldSpace = worldSize.x * worldSize.y * worldSize.z;
 	int material = 0;
 
 	for (auto child : pieceListFrame->getChildren()){
-		listPiece* lp;
-		if ((lp = dynamic_cast<listPiece*>(child))){
+		listPieceEntry* lp;
+		if ((lp = dynamic_cast<listPieceEntry*>(child))){
 			//update copies amount in pieces
 			lp->itemIt->copies = lp->copiesCounter->getValue();
-			material += lp->itemIt->copies * lp->itemIt->mass();
+
+			int mass = lp->itemIt->mass();
+			material += lp->itemIt->copies * mass;
+
+			if (mass == 0){
+				lp->statusLabel->setFlag(UI_ACTIVE);
+				lp->statusLabel->setText("No material");
+				lp->statusLabel->setColor(BAD_TEXT_COLOR);
+			}
+			else if (!(lp->itemIt->getSize() <= worldSize)){
+				lp->statusLabel->setFlag(UI_ACTIVE);
+				lp->statusLabel->setText("Larger than the world");
+				lp->statusLabel->setColor(BAD_TEXT_COLOR);
+			}
+			else{
+				lp->statusLabel->clearFlag(UI_ACTIVE);
+			}
 		}
 	}
 
@@ -110,42 +184,24 @@ void App::pieceListCheckSolvingPossiblity(){
 	snprintf(buf, 256, "%d out of %d material", material, worldSpace);
 	materialStatusLabel->setText(buf);
 
-	if (material == worldSpace){
+	if (material == worldSpace and !pieceTooLarge){
 		solvingPossible = true;
+		solveButton->setColor(SOLVE_BUTTON_GOOD_COLOR);
+		materialStatusLabel->setColor(NEUTRAL_TEXT_COLOR);
+	}
+	else{
+		if (material < worldSpace){
+			materialStatusLabel->setColor(YELLOW_TEXT_COLOR);
+		}
+		else{
+			materialStatusLabel->setColor(BAD_TEXT_COLOR);
+		}
+		solveButton->setColor(SOLVE_BUTTON_BAD_COLOR);
 	}
 }
 
-void App::pieceListInit(){
-	pieceListFrame = new ScrollingFrame(vec2i(10, 10), 500);
-	newPieceButton = new Button(vec2i(0, 0), (char*)"Add new", &App::newPieceButtonCallback);
-	newPieceButton->setColor(0.4f, 0.8f, 0.4f);
-	newPieceButton->setSize(vec2i(LIST_PIECE_FRAME_WIDTH, newPieceButton->getSize().y));
-	pieceListFrame->addChild(newPieceButton);
-
-	solvingOptionsFrame = new Frame(pieceListFrame->getPosition() + vec2i(LIST_PIECE_FRAME_WIDTH + 50, 0), vec2i(5 * 70, newPieceButton->getSize().y + 2 * FRAME_ROUNDED_RADIUS));
-	for (int i = 0; i < 3; i++){
-		dimCounters[i] = new Counter(vec2i(i * 70, 0), 1, 99, 4);
-		solvingOptionsFrame->addChild(dimCounters[i]);
-		dimCounters[i]->setColor(0.4f, 0.1f, 0.6f);
-	}
-	solveButton = new Button(vec2i(3 * 70 + 30, 0), "Solve", &App::solveButtonCallback);
-	solveButton->setColor(0.3f, 0.5f, 0.6f);
-
-	materialStatusLabel = new Label(vec2i(0, 50), (char*)"");
-	solvingPossibleLabel = new Label(vec2i(0, 50), (char*)"");
-
-	solvingOptionsFrame->addChild(solveButton);
-	solvingOptionsFrame->addChild(materialStatusLabel);
-	
-	stateElems[STATE_LIST_PIECES]->addChild(pieceListFrame);
-	stateElems[STATE_LIST_PIECES]->addChild(solvingOptionsFrame);
-}
-
-void App::pieceListingUpdate(){
+void PieceListScreen::update(){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	pieceListFrame->update();
-}
 
-void App::pieceListingOverlay(){
 
 }

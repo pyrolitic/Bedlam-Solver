@@ -1,18 +1,17 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
-#include <GL/glu.h>
 
 #include "app.h"
 
-void App::solutionInit(){
-	//stateElems[STATE_SHOW_RESULT]->addChild
+SolutionScreen::SolutionScreen(){
+	rootUI = new UIElem();
 }
 
-void App::solutionUpdate(){
+SolutionScreen::~SolutionScreen(){
+	
+}
+
+void SolutionScreen::update(){
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-}
-
-void App::solutionOverlay(){
 
 }

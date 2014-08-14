@@ -5,19 +5,20 @@
 
 #include <string>
 
-#ifndef TEST_BUILD //remove all references to gl when doing unit tests
-#include <GL/glew.h>
+#include "../graphics/text_render.h"
 
-#include "text_render.h"
-#endif
 #include "frame.h"
+
+extern Shader* textShader; //app.cpp
 
 class TextInput : public Frame{
 public:
-	TextInput(vec2i pos, int width, const char* defaultText = "") : Frame(pos, vec2i(0, 0)), defaultText(defaultText) {
+	TextInput(int width, const char* defaultText = "") : Frame(){
 		Frame::setSize(vec2i(width + 2 * FRAME_ROUNDED_RADIUS, 2 * FRAME_ROUNDED_RADIUS + TextRender::getReasonableHeight()));
 		caretIndex = -1; //end
 		caretPos = pos.x + FRAME_ROUNDED_RADIUS;
+
+		setDefaultText(defaultText);
 	}
 
 	virtual ~TextInput(){
@@ -26,23 +27,79 @@ public:
 		}
 	}
 
+	void update(){
+		//do nothing
+	}
+
 	void setDefaultText(const char* text){
 		defaultText.assign(text);
+		vec2i s; //throw-away
+		TextRender::prepare(defaultTextCache, s, defaultText.c_str());
 	}
 
 	std::string getDefaultText(){
 		return defaultText;
 	}
 
-	void clearEntry(){
-		text.assign("");
-	}
-
 	std::string getText(){
 		return text; //copy not reference
 	}
 
-	void onControlKey(int key){
+	void setText(const char* newText){
+		text.assign(newText);
+		int textWidth, textHeight;
+		vec2i textSize;
+		TextRender::prepare(textCache, textSize, text.c_str());
+		Frame::setSize(vec2i(textSize.x + 2 * FRAME_ROUNDED_RADIUS, 2 * FRAME_ROUNDED_RADIUS + std::max(BUTTON_MIN_TEXT_HEIGHT, textSize.y)));
+	}
+
+	void draw(int depth){
+		Frame::draw(depth); //draw frame underneath
+
+		vec2i renderAt = pos + vec2i(FRAME_ROUNDED_RADIUS); //overlay text, centered
+		std::vector<uiVert>* cache;
+		uint8_t textCol[4];
+
+		if (text.size() == 0 and UIElem::focus != this){
+			//render default text
+			textCol[0] = 0x33;
+			textCol[1] = 0x4C;
+			textCol[2] = 0x4C;
+			textCol[3] = 0xFF;
+			cache = &defaultTextCache;
+		}
+		else{
+			//render entered text
+			textCol[0] = 0x19;
+			textCol[1] = 0x19;
+			textCol[2] = 0x19;
+			textCol[3] = 0xFF;
+			cache = &textCache;
+		}
+
+		uiRender->startEntity(UI_ENTITY_TEXT, renderAt, depth + 1, textCol, TextRender::getFontTexture());
+		uiRender->addVerts(cache->size(), cache->data());
+		uiRender->endEntity();
+
+		if (UIElem::focus == this){
+			//also render caret
+			uint8_t caretCol[4];
+			caretCol[0] = caretCol[1] = caretCol[2] = 30;
+			caretCol[3] = (glutGet(GLUT_ELAPSED_TIME) % 1100 < 400) * 255;
+
+			vec2i offset(pos.x + FRAME_ROUNDED_RADIUS + caretPos, pos.y + FRAME_ROUNDED_RADIUS);
+			uiRender->startEntity(UI_ENTITY_TEXT, offset, depth + 1, textCol, TextRender::getFontTexture());
+			uiRender->addVerts(caretVerts.size(), caretVerts.data());
+			uiRender->endEntity();
+		}
+	}
+
+	void addChild(UIElem* child){
+		printf("warning: trying to add child to a button\n");
+	}
+
+protected:
+	void privateOnControlKey(int key){
 		printf("textinput::oncontrolkey %d\n", key);
 		if (key == GLUT_KEY_LEFT){
 			if (caretIndex > 1) caretIndex--;
@@ -73,7 +130,7 @@ public:
 		}
 	}
 
-	void onTextKey(int key, int modifiers){
+	void privateOnTextKey(int key, int modifiers){
 		if (key == '\b'){
 			//backspace
 			if (text.size() > 0){
@@ -118,7 +175,7 @@ public:
 		}
 	}
 
-	void onMouseDown(vec2i at, int button){
+	void privateOnMouseDown(vec2i at, int button){
 		if (button == GLUT_LEFT_BUTTON){
 			if (UIElem::focus == this){
 				if (at >= pos + vec2i(FRAME_ROUNDED_RADIUS) and at < pos + size - vec2i(FRAME_ROUNDED_RADIUS)){
@@ -153,41 +210,13 @@ public:
 		}
 	}
 
-#ifndef TEST_BUILD //remove all references to gl when doing unit tests
-	void setText(const char* newText){
-		text.assign(newText);
-		int textWidth, textHeight;
-		TextRender::metrics(text.c_str(), &textWidth, &textHeight);
-		Frame::setSize(vec2i(textWidth + 2 * FRAME_ROUNDED_RADIUS, 2 * FRAME_ROUNDED_RADIUS + std::max(BUTTON_MIN_TEXT_HEIGHT, textHeight)));
+public:
+	static void init(){
+		vec2i s;
+		TextRender::prepare(caretVerts, s, "|");
 	}
 
-	void draw(){
-		Frame::draw(); //draw frame underneath
-
-		//render text
-		vec2i renderAt = pos + vec2i(FRAME_ROUNDED_RADIUS, FRAME_ROUNDED_RADIUS); //overlay text, centered
-		if (text.size() == 0 and UIElem::focus != this){
-			glColor4f(0.2f, 0.3f, 0.3f, 1.0f);
-			TextRender::render(defaultText.c_str(), renderAt.x, renderAt.y);
-		}
-		else{
-			glColor4f(0.1f, 0.1f, 0.1f, 1.0f);
-			TextRender::render(text.c_str(), renderAt.x, renderAt.y);
-		}
-
-		if (UIElem::focus == this){
-			//also render caret
-			glDisable(GL_TEXTURE_2D);
-			glBegin(GL_LINES);
-			glVertex2i(pos.x + FRAME_ROUNDED_RADIUS + caretPos, pos.y + FRAME_ROUNDED_RADIUS);
-			glVertex2i(pos.x + FRAME_ROUNDED_RADIUS + caretPos, pos.y + size.y - FRAME_ROUNDED_RADIUS);
-			glEnd();
-		}
-	}
-#endif
-
-	void addChild(UIElem* child){
-		printf("warning: trying to add child to a button\n");
+	static void end(){
 	}
 
 private:
@@ -195,6 +224,12 @@ private:
 	std::string defaultText;
 	int caretIndex;
 	int caretPos; //spatial offset from the beginning of text, in pixels
+
+	std::vector<uiVert> defaultTextCache;
+	std::vector<uiVert> textCache;
+	
+	static std::vector<uiVert> caretVerts;
+	static Texture* caretTexture;
 };
 
 #endif

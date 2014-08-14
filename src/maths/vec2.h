@@ -30,7 +30,8 @@ class vec2Templated {
 			y = yy;
 		}
 
-		vec2Templated(const vec2Templated<T>& rhs) {
+		template <class S>
+		vec2Templated(const vec2Templated<S>& rhs) {
 			x = rhs.x;
 			y = rhs.y;
 		}
@@ -83,6 +84,11 @@ class vec2Templated {
 		}
 
 		//get
+		template<class S>
+		operator vec2Templated<S>(){
+			return vec2Templated<S>((S)x, (S)y);
+		}
+
 		T length() const {
 			return sqrt(x * x + y * y);
 		}

@@ -34,9 +34,11 @@ private:
 				highest = maxVec(highest, v);
 			}
 
-			size = highest - lowest;
+			size = highest - lowest + vec3i(1);
 			data = (uint8_t*) malloc(size.x * size.y * size.z * sizeof(uint8_t)); //maybe change this to std::bitset
 			memset(data, 0, size.x * size.y * size.z * sizeof(uint8_t));
+
+			printf("added piece of size %d x %d x %d\n", size.x, size.y, size.z);
 
 			for (auto pairs : from.blocks){
 				vec3i p = pairs.first - lowest;
@@ -159,11 +161,7 @@ public:
 		}
 
 		//start the thread
-		solverThread = std::thread(threadEntry, this);
-	}
-
-	bool isWorkerAlive(){
-		return workerAlive;
+		//solverThread = std::thread(threadEntry, this);
 	}
 
 	//must not be called until the thread is dead
@@ -176,7 +174,7 @@ public:
 		dieCommand = true;
 	}
 
-	bool isDead(){
+	bool isWorkerAlive() const{
 		return workerAlive;
 	}
 

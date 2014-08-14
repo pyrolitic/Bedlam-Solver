@@ -3,8 +3,9 @@
 
 #include <cmath>
 
+#include "../maths/vec3.h"
+
 #include "ui_elem.h"
-#include "vec3.h"
 
 //this is an invisible element that acts as a kind of trackpad, behind the vsible UI
 class CameraControl : public UIElem{
@@ -14,38 +15,18 @@ public:
 	#define CAMERA_MAX_DIVE -0.3f
 	#define CAMERA_DIST_MIN 1.5f
 
-	CameraControl() : UIElem(0, 0){
+	CameraControl() : UIElem(){
 		resetCamera();
 	}
 
 	~CameraControl(){
 	}
 
-	void onMouseDown(vec2i at, int button) {
-		if (button == GLUT_RIGHT_BUTTON){
-			turnDragBase = turn;
-			diveDragBase = dive;
-			distDragBase = dist;
-		}
-	}
+	void update(){
+		//position child elements as UIElem would
+		UIElem::update();
 
-	void onMouseUp(vec2i at, int button) {
-		if (button == GLUT_RIGHT_BUTTON){
-			//drag end, angle wrap
-			turn = fmodf(turn, M_PI * 2);
-		}
-	}
-	
-	void onMouseDrag(vec2i to, vec2i base, int button) {
-		if (button == GLUT_RIGHT_BUTTON){
-			vec2i delta = to - base;
-
-			turn = turnDragBase + delta.x * 0.01f;
-			dive = diveDragBase + delta.y * 0.01f;
-
-			if (dive < CAMERA_MIN_DIVE) dive = CAMERA_MIN_DIVE;
-			if (dive > CAMERA_MAX_DIVE) dive = CAMERA_MAX_DIVE;
-		}
+		//TODO: maybe smoother camera transitions
 	}
 
 	UIElem* collides(vec2i at) const{
@@ -88,6 +69,33 @@ public:
 	}
 
 protected:
+	void privateOnMouseDown(vec2i at, int button) {
+		if (button == GLUT_RIGHT_BUTTON){
+			turnDragBase = turn;
+			diveDragBase = dive;
+			distDragBase = dist;
+		}
+	}
+
+	void privateOnMouseUp(vec2i at, int button) {
+		if (button == GLUT_RIGHT_BUTTON){
+			//drag end, angle wrap
+			turn = fmodf(turn, M_PI * 2);
+		}
+	}
+	
+	void privateOnMouseDrag(vec2i to, vec2i base, int button) {
+		if (button == GLUT_RIGHT_BUTTON){
+			vec2i delta = to - base;
+
+			turn = turnDragBase + delta.x * 0.01f;
+			dive = diveDragBase + delta.y * 0.01f;
+
+			if (dive < CAMERA_MIN_DIVE) dive = CAMERA_MIN_DIVE;
+			if (dive > CAMERA_MAX_DIVE) dive = CAMERA_MAX_DIVE;
+		}
+	}
+
 	bool privateOnWheel(vec2i at, int delta){
 		//zoom
 		dist += -delta * log10(dist);

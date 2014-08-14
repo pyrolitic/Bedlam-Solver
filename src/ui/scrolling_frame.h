@@ -12,12 +12,20 @@ class ScrollingFrame : public Frame{
 public:
 	#define SCROLLING_FRAME_ELMENT_SEPARATION FRAME_ROUNDED_RADIUS
 
-	ScrollingFrame(vec2i pos, int height) : Frame(pos, vec2i(0, height)){
+	ScrollingFrame(int height) : Frame(){
+		setSize(vec2i(0, height));
 	}
 
 	virtual ~ScrollingFrame() {}
 
 	virtual void update(){
+		//update all active children first
+		for (auto child : children){
+			if (child->getFlags() & UI_ACTIVE){
+				child->update();
+			}
+		}
+
 		//compute the dimensions and position each element
 		int contentHeight = 0;
 		int maxWidth = 0;
@@ -36,9 +44,9 @@ public:
 		setSize(vec2i(maxWidth + 2 * FRAME_ROUNDED_RADIUS, size.y)); //don't make it longer than before
 	}
 
-	virtual void draw(){//float r, float g, float b){
-		Frame::draw();
-		UIElem::draw();
+	virtual void draw(int depth){
+		Frame::draw(depth);
+		//UIElem::draw();
 	}
 
 	virtual UIElem* collides(vec2i at) const{
