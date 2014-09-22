@@ -30,32 +30,32 @@
 #include "graphics/text_render.h"
 #include "graphics/vertex_array_object.h"
 
-#include "maths/vec3.h"
+#include "maths/vec.h"
 #include "maths/mat4.h"
 
 #include "solver.h"
 #include "piece.h"
 
 //colors
-#define EDIT_BUTTON_COLOR        0x6666B2FF
-#define DELETE_BUTTON_COLOR      0xB26666FF
-#define COPIES_COUNTER_COLOR     0x661499FF
-#define ADD_NEW_BUTTON_COLOR     0x66CC66FF
-#define SOLVE_BUTTON_BAD_COLOR   0x4C7F99FF
-#define SOLVE_BUTTON_GOOD_COLOR  0x5C8FA9FF
-#define LIST_PIECE_FRAME_COLOR   0xB2B2B2FF
+#define EDIT_BUTTON_COLOR           0x6666B2FF
+#define DELETE_BUTTON_COLOR         0xB26666FF
+#define COPIES_COUNTER_COLOR        0x661499FF
+#define ADD_NEW_BUTTON_COLOR        0x66CC66FF
+#define SOLVE_BUTTON_BAD_COLOR      0x4C7F99FF
+#define SOLVE_BUTTON_GOOD_COLOR     0x5C8FA9FF
+#define LIST_PIECE_FRAME_COLOR      0xB2B2B2FF
 
 #define DISCARD_BUTTON_COLOR        0xB27F7FFF
 #define SAVE_BUTTON_COLOR           0x7F7FB2FF
 #define UNDO_BUTTON_ACTIVE_COLOR    0x667F33FF
 #define UNDO_BUTTON_INACTIVE_COLOR  0x4C4C4CFF
 
-#define SHOW_BUTTON_NEW          0x76DC76FF
-#define SHOW_BUTTON_OLD          0x66CC66FF
+#define SHOW_BUTTON_NEW             0x76DC76FF
+#define SHOW_BUTTON_OLD             0x66CC66FF
 
-#define NEUTRAL_TEXT_COLOR        0x111111FF
-#define YELLOW_TEXT_COLOR         0x302011FF
-#define BAD_TEXT_COLOR            0x501111FF
+#define NEUTRAL_TEXT_COLOR          0x111111FF
+#define YELLOW_TEXT_COLOR           0x607011FF
+#define BAD_TEXT_COLOR              0x802121FF
 
 /*
 def tohex(string):
@@ -88,18 +88,18 @@ inline std::string demangledTypeName(const T* thing){
 #endif
 }
 
-extern vec2i windowResolution;
+extern ivec2 windowResolution;
 extern int anisoLevel;
 extern int drawingAt;
 
 extern struct mouseInfo_s{
 	UIElem* mouseButtonDownOn[3];
-	vec2i mouseButtonDownAt[3];
+	ivec2 mouseButtonDownAt[3];
 	bool mouseDown[3];
 	bool lastMouseDown[3]; 
 
-	vec2i oldMouse;
-	vec2i mouse;
+	ivec2 oldMouse;
+	ivec2 mouse;
 } mouseInfo;
 
 extern struct keyboardState_s{
@@ -107,12 +107,31 @@ extern struct keyboardState_s{
 	bool specialDown[256]; //specialCallback and specialUpCallback
 } keyboardState;
 
+
+struct blockVert{
+	vec3 position;
+	vec3 normal;
+	vec2 tex;
+	uint8_t col[4];
+};
+
+//used across screens
+extern Texture* blockTexture;
+extern Texture* blurredBlob;
+
+extern Shader* blockShader;
+extern Shader* lineShader;
+
+extern VertexArrayObject<blockVert>* axesVAO;
+
+extern const blockVert defaultBlock[];
+
 //states
-#define STATE_LIST_PIECES 0
-#define STATE_EDIT_PIECE 1
-#define STATE_SOLVE 2
-#define STATE_SHOW_RESULT 3
-#define NUM_STATES 4
+#define STATE_LIST_PIECES  0
+#define STATE_EDIT_PIECE   1
+#define STATE_SOLVE        2
+#define STATE_SHOW_RESULT  3
+#define NUM_STATES         4
 extern int state;
 
 //to be called by each state transition function
@@ -120,7 +139,8 @@ void cleanInput();
 
 //global state needed across screens
 extern std::list<Piece> pieces; //actual piece storage
-extern vec3i worldSize;
+extern std::list<int> piecesCopies;
+extern ivec3 worldSize;
 extern Solver* solver;
 
 class Screen{
@@ -151,17 +171,23 @@ public:
 
 struct listPieceEntry : public Frame{
 	std::list<Piece>::iterator itemIt;
+	std::list<int>::iterator copyIt;
 	std::string name;
+
+	// /------------------------------\
+	// | nameEntry..                  |
+	// | (delete) (edit) (+ copies -) |
+	// \------------------------------/
 
 	TextInput* nameEntry;
 	Counter* copiesCounter;
 	Label* statusLabel;
 
-	listPieceEntry(const std::list<Piece>::iterator& it);
+	listPieceEntry(const std::list<Piece>::iterator& it, const std::list<int>::iterator& copyIt);
 	~listPieceEntry();
 
-	void editButtonCallback(UIElem* elem, vec2i at, int button);
-	void deleteButtonCallback(UIElem* elem, vec2i at, int button);
+	void editButtonCallback(UIElem* elem, ivec2 at, int button);
+	void deleteButtonCallback(UIElem* elem, ivec2 at, int button);
 	void copiesCounterChangeCallback(Counter* context, int oldValue, int newValue);
 };
 
@@ -189,20 +215,13 @@ private:
 	Button* solveButton;
 	Label* materialStatusLabel;
 
-	void newPieceButtonCallback(UIElem* context, vec2i at, int button);
-	void solveButtonCallback(UIElem* context, vec2i at, int button);
+	void newPieceButtonCallback(UIElem* context, ivec2 at, int button);
+	void solveButtonCallback(UIElem* context, ivec2 at, int button);
 	void dimensionCounterChangeCallback(Counter* context, int oldValue, int newValue);
 };
 //=====================================
 //Piece editing state
 //=====================================
-struct blockVert{
-	vec3f position;
-	vec3f normal;
-	vec2f tex;
-	uint8_t col[4];
-};
-
 class EditingScreen : public Screen{
 public:
 	#define EDITING_MAX_DIST_BLOCK 25
@@ -210,9 +229,9 @@ public:
 
 	struct pieceChange{
 		bool removal;
-		vec3i at;
+		ivec3 at;
 
-		pieceChange(bool removal, vec3i at): 
+		pieceChange(bool removal, ivec3 at): 
 			removal(removal), at(at) {}
 	};
 
@@ -231,11 +250,11 @@ public:
 
 private:
 	CameraControl* cameraControl;
-	vec3f cameraEye;
-	vec3f mouseRayDir;
+	vec3 cameraEye;
+	vec3 mouseRayDir;
 
 	mat4 projection; //ideally redone on every resize, but updated on update()
-	mat4 modelView; //updated by mouseDragCallback
+	mat4 view; //updated by mouseDragCallback
 
 	Piece tempPiece; //a temporary piece separate from the stored ones
 	listPieceEntry* parentRef; //reference to the actual piece being edited
@@ -243,7 +262,7 @@ private:
 
 	//keep results of the last collision, so that the collision check won't be done every frame
 	Piece::collisionResult lastCollision; //only valid when $collision is true
-	vec3i extrudedBlock;
+	ivec3 extrudedBlock;
 	bool collision;
 	bool tooFar;
 
@@ -256,10 +275,9 @@ private:
 
 	Label* eyeLabel;
 	Label* mouseRayLabel;
+	Label* collisionLabel;
+	Label* newBlockLabel;
 	Label* cameraAngleLabel;
-
-	Texture* blockTexture;
-	Texture* blurredBlob;
 
 	//graphics
 	VertexArrayObject<blockVert>* blocksVAO;
@@ -269,14 +287,17 @@ private:
 	void checkCollision();
 
 	//for the camera control, 
-	void mouseUpCallback(UIElem* context, vec2i at, int button); //to place or remove blocks
-	void mouseMoveCallback(UIElem* context, vec2i to); //to ckeck for collisions
-	void mouseDragCallback(UIElem* context, vec2i from, vec2i to, int button); //to change the modelview matrix
+	void mouseDownCallback(UIElem* context, ivec2 at, int button); //to place or remove blocks
+	void mouseMoveCallback(UIElem* context, ivec2 to); //to ckeck for collisions
+	void mouseDragCallback(UIElem* context, ivec2 from, ivec2 to, int button); //to change the modelview matrix
+	void mouseWheelCallback(UIElem* context, ivec2 at, int delta); //to change the modelview matrix
 
-	void discardButtonCallback(UIElem* context, vec2i at, int button);
-	void saveButtonCallback(UIElem* context, vec2i at, int button);
-	void undoButtonCallback(UIElem* context, vec2i at, int button);
+	void discardButtonCallback(UIElem* context, ivec2 at, int button);
+	void saveButtonCallback(UIElem* context, ivec2 at, int button);
+	void undoButtonCallback(UIElem* context, ivec2 at, int button);
 
+	void updateMouseRay(ivec2 to);
+	void updateViewMatrix();
 	void rebuildBlockVAO();
 };
 
@@ -284,14 +305,21 @@ private:
 //Solving state
 //=====================================
 struct listSolutionEntry : public Frame{
-	bool seen;
-	Solver::solutionPiece* raw;
+	Solver::solutionPiece* metadata;
 
-	listSolutionEntry(Solver::solutionPiece* block);
+	#define LIST_SOLUTION_ENTRY_NEW_BG  0x55A050FF
+	#define LIST_SOLUTION_ENTRY_SEEN_BG 0x707070FF
+
+	// /-----------------\
+	// | timestamp       |
+	// | (Show) (Delete) |
+	// \-----------------/
+
+	listSolutionEntry(Solver::solutionPiece* data, int elapsedMilli);
 	~listSolutionEntry();
 
-	void showButtonCallback(UIElem* elem, vec2i at, int button);
-	void removeButtonCallback(UIElem* elem, vec2i at, int button);
+	void showButtonCallback(UIElem* elem, ivec2 at, int button);
+	void removeButtonCallback(UIElem* elem, ivec2 at, int button);
 };
 
 class SolvingScreen : public Screen{
@@ -305,9 +333,15 @@ public:
 	INSTANCE_GETTER(SolvingScreen, STATE_SOLVE)
 
 private:
+	int lastSolutionFoundAt;
+
 	ScrollingFrame* solvingSolutionList;
 	Button* stopSolverButton;
-	void stopSolverButtonCallback(UIElem* context, vec2i at, int button);
+	Button* backButton;
+	Button* solutionsIndicator;
+
+	void stopSolverButtonCallback(UIElem* context, ivec2 at, int button);
+	void backButtonCallback(UIElem* context, ivec2 at, int button);
 };
 
 //=====================================
@@ -318,14 +352,101 @@ public:
 	SolutionScreen();
 	~SolutionScreen();
 
-	void transitionWithSolution(listSolutionEntry& ref);
+	void piecesChanged();
+	void transitionWithSolution(Solver::solutionPiece* metadata);
 	void update();
 
 	INSTANCE_GETTER(SolutionScreen, STATE_SHOW_RESULT)
 
-private:
-	listSolutionEntry* animatedSolution;
-	Button* nextPieceButton, * resetButton;
+//private: //debug
+	struct pieceRepr {
+		//in relation to mesh storage VAO
+		int firstVert;
+		int vertCount;
+
+		ivec3 originalSize;
+
+		pieceRepr(int firstVert, int vertCount, const ivec3& size) : 
+			firstVert(firstVert), vertCount(vertCount), originalSize(size) {}
+	};
+
+	struct instanceRepr{
+		//rotated to orientation
+		Piece material;
+		ivec3 rotatedSize;
+
+		//as currently displayed
+		mat4 transformation;
+
+		//logic
+		bool draw;
+		bool placed;
+
+		instanceRepr(const Piece& original, int orientationId) : 
+			material(original, orientationId), draw(false), placed(false) {}
+	};
+
+	//compute these once per piece set (invalidate when a piece is changed)
+	VertexArrayObject<blockVert>* blocksVAO;
+	pieceRepr* pReps; //one for every piece (not instance)
+
+
+	//per-solution data
+	int instances;
+	instanceRepr* inReps; //one for every instance
+	Solver::solutionPiece* source; //one for every piece instance; comes from solution list, do not free
+
+	Piece addedMaterial; //logical OR of all pieces added so far; used to determine the best viewing angle
+
+	//animation
+	struct animationKeyFrame{
+		vec3 cameraPosition;
+		vec3 cameraTarget;
+
+		quat pieceRotation;
+		vec3 piecePosition;
+
+		int time;
+	};
+
+	int currentInstance;
+	vec3 currentInstanceTranslation[2];
+
+	animationKeyFrame animStart;
+	animationKeyFrame animEnd;
+
+	#define STATE_SHOW_RESULT_ANIMATION_WARP 0
+	#define STATE_SHOW_RESULT_ANIMATION_PIECE_ROTATE 1
+	#define STATE_SHOW_RESULT_ANIMATION_SLIDE 2
+	#define STATE_SHOW_RESULT_ANIMATION_STATES 3
+	int animationState;
+	bool animation;
+
+	vec3 bestViewDirection(int instId);
+	ivec3 slideDirection(int instId);
+
+	//constant? maybe spawn piece in different places if more appropriate
+	vec3 pieceSpawnPosition;
+	float slideCameraDistance;
+
+	//viewing - current values
+	//TODO: maybe switch to polar coordinates for the camera position, to maintain the same distance to the target at all times
+	vec3 cameraPosition;
+	vec3 cameraTarget;
+	vec3 mouseRayDir;
+
+	mat4 projection; //ideally redone on every resize, but updated on update()
+	mat4 view; //updated by mouseDragCallback
+
+	//UI
+	Button* nextPieceButton;
+	Button* resetButton;
+	Button* backButton;
+
+	Label* eyeLabel;
+	Label* targetLabel;
+	Label* animTimeLabel;
+	Label* animStateLabel;
 };
 
 void init();

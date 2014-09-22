@@ -10,7 +10,7 @@
 #include "../graphics/texture.h"
 #include "../graphics/ui_render.h"
 
-#include "../maths/vec2.h"
+#include "../maths/vec.h"
 #include "../maths/mat4.h"
 
 #include "ui_elem.h"
@@ -34,15 +34,15 @@ public:
 
 		//fit all contents
 		if (!children.empty()){
-			vec2i largest = children.front()->getSize();
+			ivec2 largest = children.front()->getSize();
 
 			for (auto elem : children){
-				elem->setPosition(pos + vec2i(FRAME_ROUNDED_RADIUS));
-				vec2i elemSize = elem->getSize();
+				elem->setPosition(pos + ivec2(FRAME_ROUNDED_RADIUS));
+				ivec2 elemSize = elem->getSize();
 				if (elemSize > largest) largest = elemSize;
 			}
 
-			setSize(vec2i(FRAME_ROUNDED_RADIUS) * 2 + largest);
+			setSize(ivec2(FRAME_ROUNDED_RADIUS) * 2 + largest);
 		}
 	}
 
@@ -109,7 +109,7 @@ public:
 		verts[34].pos.set(px + FRAME_ROUNDED_RADIUS + width + FRAME_ROUNDED_RADIUS, py + FRAME_ROUNDED_RADIUS + height);
 		verts[35].pos.set(px,                                                       py + FRAME_ROUNDED_RADIUS + height);
 
-		uiRender->startEntity(UI_ENTITY_PANE, vec2i(), depth, col, roundedBox);
+		uiRender->startEntity(UI_ENTITY_PANE, ivec2(), depth, col, roundedBox);
 		uiRender->addVerts(36, verts);
 		uiRender->endEntity();
 
@@ -117,7 +117,7 @@ public:
 		UIElem::draw(depth);
 	}
 
-	virtual UIElem* collides(vec2i at) const{
+	virtual UIElem* collides(ivec2 at) const{
 		UIElem* child = UIElem::collides(at);
 		if (child){
 			return child;
@@ -131,9 +131,8 @@ public:
 	}
 
 	virtual void addChild(UIElem* child){
-		child->setParent(this);
-		children.emplace_back(child);
-		child->setPosition(pos + child->getPosition() + vec2i(FRAME_ROUNDED_RADIUS, FRAME_ROUNDED_RADIUS)); //place inside $this
+		UIElem::addChild(child);
+		child->setPosition(pos + child->getPosition() + ivec2(FRAME_ROUNDED_RADIUS, FRAME_ROUNDED_RADIUS)); //place inside $this
 	}
 
 public:

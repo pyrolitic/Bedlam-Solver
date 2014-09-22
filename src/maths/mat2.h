@@ -6,134 +6,217 @@
 #include <ostream>
 #include <string>
 
-class vec2;
+#include "vec.h"
 
-class mat2 {
-	public:
-		union {
-				struct {
-						//use these for referencing elements in the matrix
-						float _11, _12;
-						float _21, _22;
-				};
-
-				float data[4]; //vertical layout
+template <typename T>
+struct mat2T {
+	union {
+		struct {
+			//use these for referencing elements in the matrix
+			T _11, _21;
+			T _12, _22;
 		};
 
-		mat2() {
-			memset(data, 0, 4 * sizeof(float));
+		T data[4]; //vertical layout
+	};
+
+	mat2T() {
+		memset(data, 0, 4 * sizeof(float));
+	}
+
+	template <typename S>
+	mat2T(const mat2T<S>& m) {
+		for(int i = 0; i < 4; i++)
+			data[i] = m.data[i];
+	}
+
+	template <typename S>
+	void operator =(const mat2T& m) {
+		for(int i = 0; i < 4; i++)
+			data[i] = m.data[i];
+	}
+
+	/*std::string represent() {
+		char buf[4][64];
+		int lenghts[4];
+
+		for (int i = 0; i < 4; i++) {
+			snprintf(buf[i], 64, "%.5f", data[i]);
+			lenghts[i] = strlen(buf[i]);
 		}
 
-		mat2(const mat2& m) {
-			memcpy(data, m.data, 4 * sizeof(float));
-		}
+		int highest = 0;
 
-		void operator =(const mat2& m) {
-			memcpy(data, m.data, 4 * sizeof(float));
-		}
+		for (int i = 0; i < 4; i++)
+			if (highest < lenghts[i]) highest = lenghts[i];
 
-		std::string represent() {
-			char buf[4][64];
-			int lenghts[4];
+		std::string ret;
+		ret.reserve(4 * 64);
 
-			for (int i = 0; i < 4; i++) {
-				snprintf(buf[i], 64, "%.5f", data[i]);
-				lenghts[i] = strlen(buf[i]);
-			}
-
-			int highest = 0;
-
-			for (int i = 0; i < 4; i++)
-				if (highest < lenghts[i]) highest = lenghts[i];
-
-			std::string ret;
-			ret.reserve(4 * 64);
-
-			for (int j = 0; j < 2; j++) {
-				for (int i = 0; i < 2; i++) {
-					for (int q = highest + 1; q > lenghts[i + j * 2]; q--)
-						ret += ' ';
-					ret += buf[i + j * 2];
-				}
-				ret += '\n';
+		for (int j = 0; j < 2; j++) {
+			for (int i = 0; i < 2; i++) {
+				for (int q = highest + 1; q > lenghts[i + j * 2]; q--)
+					ret += ' ';
+				ret += buf[i + j * 2];
 			}
 			ret += '\n';
-
-			return ret;
 		}
+		ret += '\n';
 
-		vec2 operator *(const vec2& v) const {
-			return vec2(data[0] * v.x + data[2] * v.y,
-			/*        */data[1] * v.x + data[3] * v.y);
-		}
+		return ret;
+	}*/
 
-		float det() const {
-			return _11 * _22 - _12 * _21;
-		}
+	template <typename S>
+	mat2T<S> operator *(const mat2T<S>& m) const{
+		mat2T<S> ret;
 
-		//manipulate
-		void transpose(){
-			float temp = _12;
-			_12 = _21;
-			_21 = temp;
-		}
+		ret._11 = _11 * m._11 + _12 * m._21;
+		ret._12 = _11 * m._12 + _12 * m._22;
 
-		void invert(){
-			float inv = 1.0f / det();
-			mat2 temp;
+		ret._21 = _21 * m._11 + _22 * m._21;
+		ret._22 = _21 * m._12 + _22 * m._22;
 
-			temp._11 = _22 * inv;   temp._12 = -_21 * inv;
-			temp._21 = -_12 * inv;  temp._22 = _11 * inv;
+		return m;
+	}
 
-			memcpy(data, temp.data, 4 * sizeof(float));
-		}
+	template <typename S>
+	vec2T<S> operator *(const vec2T<S>& v) const {
+		return vec2T<S>(_11 * v.x + _12 * v.y,
+		                _21 * v.x + _22 * v.y);
+	}
 
-		void operator *=(const mat2& m){
-			mat2 temp;
+	T det() const {
+		return _11 * _22 - _12 * _21;
+	}
 
-			temp._11 = _11 * m._11 + _12 * m._21;  temp._12 = _11 * m._12 + _12 * m._22;
-			temp._21 = _21 * m._11 + _22 * m._21;  temp._22 = _21 * m._12 + _22 * m._22;
+	mat2T<T> transpose() const{
+		mat2T<T> m;
 
-			memcpy(data, temp.data, 4 * sizeof(float));
-		}
+		m._11 = _11; m._12 = _21;
+		m._21 = _12; m._22 = _22;
 
-		void operator +=(const mat2& m){
-			for (int i = 0; i < 4; i++)
-				data[i] += m.data[i];
-		}
-		void operator -=(const mat2& m){
-			for (int i = 0; i < 4; i++)
-				data[i] -= m.data[i];
-		}
+		return m;
+	}
 
-		void operator *=(float f){
-			for (int i = 0; i < 4; i++)
-				data[i] *= f;
-		}
-		void operator /=(float f) {
-			for (int i = 0; i < 4; i++)
-				data[i] /= f;
-		}
+	mat2T<T> inverse() const{
+		mat2T<T> m;
 
-		//completely change to
-		void setIdentity(){
-			_11 = 1.0f; _12 = 0.0f;
-			_21 = 0.0f; _22 = 1.0f;
-		}
-		void setTranslation(const vec4& v, bool erase = false);
+		T d = det();
+		m._11 =  _22 / d;  m._12 = -_12 / d;
+		m._21 = -_21 / d;  m._22 =  _11 / d;
 
-		void setRotation(float theta){
-			float c = cos(theta);
-			float s = sin(theta);
+		return m;
+	}
 
-			_11 = c; _12 = -s;
-			_21 = s; _22 = c;
-		}
+	mat2T<T> operator -(){
+		mat2T<T> temp;
+
+		for (int i = 0; i < 4; i++)
+			temp.data[i] = -data[i];
+
+		return temp;
+	}
+
+	template <typename S>
+	mat2T<T> operator *(const mat2T<S>& m){
+		mat2T<T> temp;
+
+		temp._11 = _11 * m._11 + _12 * m._21;  temp._12 = _11 * m._12 + _12 * m._22;
+		temp._21 = _21 * m._11 + _22 * m._21;  temp._22 = _21 * m._12 + _22 * m._22;
+
+		return temp;
+	}
+
+	template <typename S>
+	mat2T<T> operator +(const mat2T<S>& m){
+		mat2T<T> temp;
+
+		for (int i = 0; i < 4; i++)
+			temp.data[i] = data[i] + m.data[i];
+
+		return temp;
+	}
+
+	template <typename S>
+	mat2T<T> operator -(const mat2T<S>& m){
+		mat2T<T> temp;
+
+		for (int i = 0; i < 4; i++)
+			temp.data[i] = data[i] - m.data[i];
+
+		return temp;
+	}
+
+
+	template <typename S>
+	mat2T<T> operator *(S f){
+		mat2T<T> temp;
+
+		for (int i = 0; i < 4; i++)
+			temp.data[i] = data[i] * f;
+
+		return temp;
+	}
+
+	template <typename S>
+	mat2T<T> operator /(S f) {
+		mat2T<T> temp;
+
+		for (int i = 0; i < 4; i++)
+			temp.data[i] = data[i] / f;
+
+		return temp;
+	}
+
+
+
+	template <typename S>
+	void operator *=(const mat2T<S>& m){
+		mat2T<T> temp;
+
+		temp._11 = _11 * m._11 + _12 * m._21;  temp._12 = _11 * m._12 + _12 * m._22;
+		temp._21 = _21 * m._11 + _22 * m._21;  temp._22 = _21 * m._12 + _22 * m._22;
+
+		memcpy(data, temp.data, 4 * sizeof(float));
+	}
+
+	template <typename S>
+	void operator +=(const mat2T<S>& m){
+		for (int i = 0; i < 4; i++)
+			data[i] += m.data[i];
+	}
+
+	template <typename S>
+	void operator -=(const mat2T<S>& m){
+		for (int i = 0; i < 4; i++)
+			data[i] -= m.data[i];
+	}
+
+
+	template <typename S>
+	void operator *=(S f){
+		for (int i = 0; i < 4; i++)
+			data[i] *= f;
+	}
+
+	template <typename S>
+	void operator /=(S f) {
+		for (int i = 0; i < 4; i++)
+			data[i] /= f;
+	}
+
+	/*void setTranslation(const vec4& v, bool erase = false);
+
+	void setRotation(float theta){
+		float c = cos(theta);
+		float s = sin(theta);
+
+		_11 = c; _12 = -s;
+		_21 = s; _22 = c;
+	}*/
 };
 
-inline std::ostream& operator<<(std::ostream& stream, mat2& m) {
-	stream << m.represent();
-	return stream;
-}
+typedef mat2T<float> mat2;
+typedef mat2T<double> dmat2;
 
-#endif /* VEC_MATH_BASE_MAT2_H */
+#endif

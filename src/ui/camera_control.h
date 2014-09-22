@@ -3,7 +3,7 @@
 
 #include <cmath>
 
-#include "../maths/vec3.h"
+#include "../maths/vec.h"
 
 #include "ui_elem.h"
 
@@ -29,7 +29,7 @@ public:
 		//TODO: maybe smoother camera transitions
 	}
 
-	UIElem* collides(vec2i at) const{
+	UIElem* collides(ivec2 at) const{
 		UIElem* above = UIElem::collides(at);
 		if (above){
 			return above;
@@ -45,8 +45,8 @@ public:
 		dist = 15.0f;
 	}
 
-	vec3f getEyePosition(){
-		vec3f eye;
+	vec3 getEyePosition(){
+		vec3 eye;
 
 		//dive
 		eye.z = 1.0f * sin(dive);
@@ -57,36 +57,34 @@ public:
 		eye.z =  eye.z * cos(turn);
 
 		//distance
-		eye.x *= dist;
-		eye.y *= dist;
-		eye.z *= dist;
+		eye *= dist;
 
 		return eye;
 	}
 
-	vec3f getTurnDiveDist(){
-		return vec3f(turn, dive, dist);
+	vec3 getTurnDiveDist(){
+		return vec3(turn, dive, dist);
 	}
 
 protected:
-	void privateOnMouseDown(vec2i at, int button) {
+	void privateOnMouseDown(ivec2 at, int button) {
 		if (button == GLUT_RIGHT_BUTTON){
 			turnDragBase = turn;
 			diveDragBase = dive;
-			distDragBase = dist;
+			//distDragBase = dist;
 		}
 	}
 
-	void privateOnMouseUp(vec2i at, int button) {
+	void privateOnMouseUp(ivec2 at, int button) {
 		if (button == GLUT_RIGHT_BUTTON){
 			//drag end, angle wrap
 			turn = fmodf(turn, M_PI * 2);
 		}
 	}
 	
-	void privateOnMouseDrag(vec2i to, vec2i base, int button) {
+	void privateOnMouseDrag(ivec2 to, ivec2 base, int button) {
 		if (button == GLUT_RIGHT_BUTTON){
-			vec2i delta = to - base;
+			ivec2 delta = to - base;
 
 			turn = turnDragBase + delta.x * 0.01f;
 			dive = diveDragBase + delta.y * 0.01f;
@@ -96,10 +94,12 @@ protected:
 		}
 	}
 
-	bool privateOnWheel(vec2i at, int delta){
+	bool privateOnWheel(ivec2 at, int delta){
 		//zoom
-		dist += -delta * log10(dist);
+		dist += delta * log10(dist);
 		if (dist < CAMERA_DIST_MIN) dist = CAMERA_DIST_MIN;
+
+		//dist += delta * 3;
 		return true;
 	}
 
@@ -107,7 +107,7 @@ private:
 	//mouselook
 	float turn, turnDragBase; //radians, about the center, angle wrapped
 	float dive, diveDragBase; //radians
-	float dist, distDragBase; //from the center
+	float dist; //from the center
 };
 
 #endif

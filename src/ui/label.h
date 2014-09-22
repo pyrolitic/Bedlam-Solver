@@ -17,16 +17,18 @@ public:
 
 	Label(){
 		//blank, no area
+		col = 0x111111FF;
 	}
 
 	Label(const char* initialText) {
 		setText(initialText);
+		col = 0x111111FF;
 	}
 
 	virtual ~Label(){
 	}
 
-	UIElem* collides(vec2i at) const{
+	UIElem* collides(ivec2 at) const{
 		//pass-through, needed for buttons
 		return nullptr;
 	}
@@ -45,8 +47,7 @@ public:
 	}
 
 	void draw(int depth){
-		uint8_t textCol[4] = {0x11, 0x11, 0x11, 0xFF};
-		uiRender->startEntity(UI_ENTITY_TEXT, pos, depth, textCol, TextRender::getFontTexture());
+		uiRender->startEntity(UI_ENTITY_TEXT, pos, depth, col, TextRender::getFontTexture());
 		uiRender->addVerts(vertCache.size(), vertCache.data());
 		uiRender->endEntity();
 	}

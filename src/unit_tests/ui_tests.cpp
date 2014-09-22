@@ -18,34 +18,34 @@ int main(){
 
 	{
 		printf("Frame as UIElem\n");
-		UIElem* frame = new Frame(vec2i(100, 100), vec2i(100, 100));
+		UIElem* frame = new Frame(ivec2(100, 100), ivec2(100, 100));
 		delete frame;
 	}
 
 	{
 		printf("Button as UIElem\n");
-		UIElem* button = new Button(vec2i(100, 100), (char*)"button");
+		UIElem* button = new Button(ivec2(100, 100), (char*)"button");
 		delete button;
 	}
 
 	{
 		printf("ScrollingFrame as UIElem\n");
-		ScrollingFrame* sf = new ScrollingFrame(vec2i(10, 10), 100);
+		ScrollingFrame* sf = new ScrollingFrame(ivec2(10, 10), 100);
 		delete sf;
 	}
 
 	{
 		printf("adding and removing stuff from frame\n");
-		Frame* frame = new Frame(vec2i(10, 10), vec2i(100, 100));
-		Button* button = new Button(vec2i(50, 0), (char*)"first");
+		Frame* frame = new Frame(ivec2(10, 10), ivec2(100, 100));
+		Button* button = new Button(ivec2(50, 0), (char*)"first");
 		printf("frame 0x%x, button 0x%x\n", frame, button);
 
 		frame->addChild(button);
 		assert(button->getParent() == frame);
 		assert(frame->hasChild(button));
 
-		frame->addChild(new Button(vec2i(0, 0), (char*)"second"));
-		frame->addChild(new Frame(vec2i(100, 10), vec2i(10, 10)));
+		frame->addChild(new Button(ivec2(0, 0), (char*)"second"));
+		frame->addChild(new Frame(ivec2(100, 10), ivec2(10, 10)));
 
 		printf("deleting button\n");
 		delete button;

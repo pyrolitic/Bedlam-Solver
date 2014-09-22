@@ -3,111 +3,56 @@
 
 #include "app.h"
 #include "ui/linear_container.h"
-
-static const blockVert defaultBlock[] = {
-	//front
-	{{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	{{0.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 1.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 0.0f, 0.0f}, {0.0f, 0.0f, -1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	//back
-	{{0.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	{{0.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 1.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	//left
-	{{0.0f, 1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{0.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{0.0f, 0.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	{{0.0f, 1.0f, 1.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{0.0f, 1.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{0.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	//right
-	{{1.0f, 1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	{{1.0f, 1.0f, 1.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 1.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 0.0f, 0.0f}, {1.0f, 0.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	//top
-	{{0.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	{{0.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 1.0f, 1.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 1.0f, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	//bottom
-	{{0.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{0.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-
-	{{0.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 0.0f, 1.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}},
-	{{1.0f, 0.0f, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.0f, 0.0f}, {0, 0, 0, 255}}
-};
-
-template<>
-void VertexArrayObject<blockVert>::setAttribPointers(){
-	glEnableVertexAttribArray(0);
-	glEnableVertexAttribArray(1);
-	glEnableVertexAttribArray(2);
-	glEnableVertexAttribArray(3);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(blockVert), (void*) (offsetof(blockVert, position)));
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(blockVert), (void*) (offsetof(blockVert, normal)));
-	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(blockVert), (void*) (offsetof(blockVert, tex)));
-	glVertexAttribPointer(3, 4, GL_UNSIGNED_BYTE, GL_TRUE, sizeof(blockVert), (void*) (offsetof(blockVert, col)));
-}
+#include "maths/mat3.h"
+#include "maths/mat4.h"
 
 EditingScreen::EditingScreen(){
-	//texture
-	uint8_t* blurred = (uint8_t*) malloc(256 * 256);
-
-	for(int j = 0; j < 256; j++){
-		float y = (float)j / 256;
-		for (int i = 0; i < 256; i++){
-			float x = (float)i / 256;
-			float dist = sqrt(x * x + y * y);
-			float coeff = cos(M_PI * dist * 0.5f);
-			blurred[i + j * 256] = (uint8_t)(std::max(0.0f, coeff * 255));
-		}
-	}
-
-	blurredBlob = new Texture(1, GL_UNSIGNED_BYTE, 256, 256, blurred, GL_LINEAR, GL_LINEAR, anisoLevel);
-	free(blurred);
-
-	//mesh
+	//meshes
 	blocksVAO = new VertexArrayObject<blockVert>();
 	singleBlockVAO = new VertexArrayObject<blockVert>();
 	gridVAO = new VertexArrayObject<blockVert>();
 
-	blockVert* v = new blockVert[24];
-	memcpy(v, defaultBlock, 24 * sizeof(blockVert));
-	for (int i = 0; i < 24; i++){
+	blockVert* v = new blockVert[36];
+	memcpy(v, defaultBlock, 36 * sizeof(blockVert));
+	for (int i = 0; i < 36; i++){
 		const uint8_t c[] = {0xB2, 0x66, 0x66, 0x7F};
 		memcpy(v[i].col, c, 4);
 	}
-	singleBlockVAO->assign(24, v);
+	singleBlockVAO->assign(36, v);
 	delete [] v;
-	
+
+	v = new blockVert[(FLOATING_GRID_EXTENT + 1) * 2 * 4];
+	memset(v, 0, (FLOATING_GRID_EXTENT + 1) * 2 * 4 * sizeof(blockVert));
+	for (int i = 0; i < (FLOATING_GRID_EXTENT + 1) * 2; i++){
+		v[i * 4 + 0].position.set(i - FLOATING_GRID_EXTENT, 0.0f, -FLOATING_GRID_EXTENT);
+		v[i * 4 + 1].position.set(i - FLOATING_GRID_EXTENT, 0.0f, FLOATING_GRID_EXTENT + 1);
+		v[i * 4 + 0].normal.set(1.0f, 1.0f, 1.0f);
+		v[i * 4 + 1].normal.set(1.0f, 1.0f, 1.0f);
+		v[i * 4 + 0].tex.set(0.5f + (float)(i - FLOATING_GRID_EXTENT) / (FLOATING_GRID_EXTENT * 2), 0.0f);
+		v[i * 4 + 1].tex.set(0.5f + (float)(i - FLOATING_GRID_EXTENT) / (FLOATING_GRID_EXTENT * 2), 1.0f);
+		*((uint32_t*) v[i * 4 + 0].col) = 0xFFFFFFFF; //endianess doesn't matter
+		*((uint32_t*) v[i * 4 + 1].col) = 0xFFFFFFFF;
+
+		v[i * 4 + 2].position.set(-FLOATING_GRID_EXTENT,    0.0f, i - FLOATING_GRID_EXTENT);
+		v[i * 4 + 3].position.set(FLOATING_GRID_EXTENT + 1, 0.0f, i - FLOATING_GRID_EXTENT);
+		v[i * 4 + 2].normal.set(1.0f, 1.0f, 1.0f);
+		v[i * 4 + 3].normal.set(1.0f, 1.0f, 1.0f);
+		v[i * 4 + 2].tex.set(0.0f, 0.5f + (float)(i - FLOATING_GRID_EXTENT) / (FLOATING_GRID_EXTENT * 2));
+		v[i * 4 + 3].tex.set(1.0f, 0.5f + (float)(i - FLOATING_GRID_EXTENT) / (FLOATING_GRID_EXTENT * 2));
+		*((uint32_t*) v[i * 4 + 2].col) = 0xFFFFFFFF;
+		*((uint32_t*) v[i * 4 + 3].col) = 0xFFFFFFFF;
+	}
+	gridVAO->assign((FLOATING_GRID_EXTENT + 1) * 2 * 4, v);
+	delete [] v;
+
+
 	//UI
 	cameraControl = new CameraControl();
 	rootUI = (UIElem*) cameraControl;
 	cameraControl->bindMouseMove(this, &EditingScreen::mouseMoveCallback);
 	cameraControl->bindMouseDrag(this, &EditingScreen::mouseDragCallback);
+	cameraControl->bindMouseWheel(this, &EditingScreen::mouseWheelCallback);
+	cameraControl->bindMouseDown(this, &EditingScreen::mouseDownCallback);
 
 	discardButton = new Button((char*)"discard");
 	discardButton->bindMouseUp(this, &EditingScreen::discardButtonCallback);
@@ -122,7 +67,7 @@ EditingScreen::EditingScreen(){
 	undoButton->setColor(UNDO_BUTTON_INACTIVE_COLOR);
 
 	Frame* buttonFrame = new Frame();
-	buttonFrame->setPosition(vec2i(20, 20));
+	buttonFrame->setPosition(ivec2(20, 20));
 
 	LinearContainer* layout = new LinearContainer(LINEAR_CONTAINER_HORIZONTAL);
 	layout->addChild(discardButton);
@@ -134,14 +79,19 @@ EditingScreen::EditingScreen(){
 
 	//debug
 	LinearContainer* debugList = new LinearContainer(LINEAR_CONTAINER_VERTICAL);
+	debugList->setFlag(UI_STICK_BOTTOM_LEFT);
 	rootUI->addChild(debugList);
 
 	eyeLabel = new Label();
 	mouseRayLabel = new Label();
+	collisionLabel = new Label();
+	newBlockLabel = new Label();
 	cameraAngleLabel = new Label();
 
 	debugList->addChild(eyeLabel);
 	debugList->addChild(mouseRayLabel);
+	debugList->addChild(collisionLabel);
+	debugList->addChild(newBlockLabel);
 	debugList->addChild(cameraAngleLabel);
 
 	//state
@@ -150,7 +100,10 @@ EditingScreen::EditingScreen(){
 
 EditingScreen::~EditingScreen(){
 	delete blurredBlob;
+
 	delete blocksVAO;
+	delete singleBlockVAO;
+	delete gridVAO;
 }
 
 void EditingScreen::transitionWithPiece(listPieceEntry* ref, bool pieceIsNew){
@@ -160,10 +113,11 @@ void EditingScreen::transitionWithPiece(listPieceEntry* ref, bool pieceIsNew){
 
 	state = STATE_EDIT_PIECE;
 	cleanInput();
+	rebuildBlockVAO();
 }
 
 
-void EditingScreen::discardButtonCallback(UIElem* context, vec2i at, int button){
+void EditingScreen::discardButtonCallback(UIElem* context, ivec2 at, int button){
 	if (button == GLUT_LEFT_BUTTON){
 		printf("clicked on the discard button\n");
 		//don't change anything, just discard the changes in $editPiece
@@ -177,10 +131,11 @@ void EditingScreen::discardButtonCallback(UIElem* context, vec2i at, int button)
 	}
 }
 
-void EditingScreen::saveButtonCallback(UIElem* context, vec2i at, int button){
+void EditingScreen::saveButtonCallback(UIElem* context, ivec2 at, int button){
 	if (button == GLUT_LEFT_BUTTON){
 		printf("clicked on the save button\n");
 		//copy the changes and change state
+		tempPiece.cancelOffset();
 		*(parentRef->itemIt) = tempPiece; //copy back
 		history.clear();
 
@@ -188,7 +143,7 @@ void EditingScreen::saveButtonCallback(UIElem* context, vec2i at, int button){
 	}
 }
 
-void EditingScreen::undoButtonCallback(UIElem* context, vec2i at, int button){
+void EditingScreen::undoButtonCallback(UIElem* context, ivec2 at, int button){
 	if (button == GLUT_LEFT_BUTTON){
 		printf("clicked on the undo button\n");
 
@@ -201,6 +156,7 @@ void EditingScreen::undoButtonCallback(UIElem* context, vec2i at, int button){
 				tempPiece.remove(step.at);
 			}
 
+			rebuildBlockVAO();
 			history.pop_back();
 
 			if (history.empty()){
@@ -210,8 +166,8 @@ void EditingScreen::undoButtonCallback(UIElem* context, vec2i at, int button){
 	}
 }
 
-void EditingScreen::mouseUpCallback(UIElem* context, vec2i at, int button){
-	if (collision){
+void EditingScreen::mouseDownCallback(UIElem* context, ivec2 at, int button){
+	if (!tooFar){
 		if (button == GLUT_LEFT_BUTTON){
 			printf("adding block at (%d %d %d)\n", extrudedBlock.x, extrudedBlock.y, extrudedBlock.z);
 			tempPiece.insert(extrudedBlock);
@@ -222,7 +178,7 @@ void EditingScreen::mouseUpCallback(UIElem* context, vec2i at, int button){
 			checkCollision();
 		}
 
-		else if (button == GLUT_RIGHT_BUTTON){
+		else if (collision and (button == GLUT_RIGHT_BUTTON)){
 			printf("removing block at (%d %d %d)\n", lastCollision.block.x, lastCollision.block.y, lastCollision.block.z);
 			tempPiece.remove(lastCollision.block);
 			history.emplace_back(true, lastCollision.block);
@@ -235,6 +191,10 @@ void EditingScreen::mouseUpCallback(UIElem* context, vec2i at, int button){
 }
 
 void EditingScreen::checkCollision(){
+	ivec3 oldBlock = lastCollision.block;
+	int oldSide = lastCollision.side;
+	bool oldCollision = collision;
+
 	collision = tempPiece.collisionCheck(cameraEye, mouseRayDir, lastCollision);
 	tooFar = false; //limit additions to EDITING_MAX_DIST_BLOCK
 
@@ -242,11 +202,16 @@ void EditingScreen::checkCollision(){
 		//offset the block from its source depending on which side it's being extruded coming from
 		extrudedBlock = lastCollision.block;
 		extrudedBlock.data[lastCollision.side >> 1] += ((lastCollision.side & 1) == 0)? -1 : 1;
+
+		if (!oldCollision or oldBlock != lastCollision.block or oldSide != lastCollision.side){
+			rebuildBlockVAO(); //move green tile
+		}
 	}
 	else{
 		//no collision, so intersect mouseInfo.mouse ray with the grid
 		float h = /*editingLayer*/ - cameraEye.y;
 		vec3 gridRayPoint = cameraEye + mouseRayDir * (h / mouseRayDir.y);
+		lastCollision.point = gridRayPoint; //TODO: a little confusing, but it's for the grid offset
 
 		int gpx = floor(gridRayPoint.x);
 		int gpz = floor(gridRayPoint.z);
@@ -254,26 +219,57 @@ void EditingScreen::checkCollision(){
 		extrudedBlock.x = gpx;
 		extrudedBlock.y = 0;//editingLayer;
 		extrudedBlock.z = gpz;
+
+		if (oldCollision){
+			rebuildBlockVAO(); //remove green tile
+		}
 	}
 
-	if (!(extrudedBlock.abs() < vec3i(EDITING_MAX_DIST_BLOCK))){
+	if (!(extrudedBlock.abs() < ivec3(EDITING_MAX_DIST_BLOCK))){
 		tooFar = true;
 	}
 }
 
-void EditingScreen::mouseMoveCallback(UIElem* context, vec2i to){
-	//check for mouse ray collision against the blocks
-	mat4 invPVM = (projection * modelView).inverse();
-	vec3f far = invPVM * vec3f((2.0f * to.x) / windowResolution.x - 1.0f,
-	                           (2.0f * to.y) / windowResolution.y - 1.0f, 
-	                           (2 * 1.0f) - 1.0f);
-	mouseRayDir = (cameraEye - far).normal();
-	checkCollision();
+void EditingScreen::mouseMoveCallback(UIElem* context, ivec2 to){
+	updateViewMatrix();
+	updateMouseRay(to);
 }
 
-void EditingScreen::mouseDragCallback(UIElem* context, vec2i from, vec2i to, int button){
+void EditingScreen::mouseDragCallback(UIElem* context, ivec2 from, ivec2 to, int button){
+	updateViewMatrix();
+	updateMouseRay(mouseInfo.mouse);
+}
+
+void EditingScreen::mouseWheelCallback(UIElem* context, ivec2 at, int delta){
+	updateViewMatrix();
+	updateMouseRay(mouseInfo.mouse);
+}
+
+void EditingScreen::updateViewMatrix(){
 	cameraEye = cameraControl->getEyePosition();
-	modelView = mat4::viewLookAt(cameraEye, vec3f(0.0f), vec3f(0.0f, 1.0f, 0.0f));
+	view = mat4::viewLookAt(cameraEye, vec3(0.0f), vec3(0.0f, 1.0f, 0.0f));
+}
+
+void EditingScreen::updateMouseRay(ivec2 to){
+	//check for mouse ray collision against the blocks
+	bool success;
+	mat4 invPVM = dmat4(projection * view).inverse(success);
+
+	vec4 farHomogenous = invPVM * vec4((2.0f * to.x) / windowResolution.x - 1.0f,
+	                         (2.0f * (windowResolution.y - to.y)) / windowResolution.y - 1.0f,
+	                         (2.0f) - 1.0f,
+	                          1.0f);
+	vec3 far = farHomogenous.xyz / farHomogenous.w;
+
+	vec4 nearHomogenous = invPVM * vec4((2.0f * to.x) / windowResolution.x - 1.0f,
+	                          (2.0f * (windowResolution.y - to.y)) / windowResolution.y - 1.0f,
+	                          (-2.0f) - 1.0f,
+	                           1.0f);
+	vec3 near = nearHomogenous.xyz / nearHomogenous.w;
+
+	mouseRayDir = (far - near).normal();
+
+	checkCollision();
 }
 
 void EditingScreen::rebuildBlockVAO(){
@@ -281,114 +277,150 @@ void EditingScreen::rebuildBlockVAO(){
 	blockVert* buf = new blockVert[count * 6 * 6]; //for every of the 6 faces there must be two triangles
 	blockVert* v = buf;
 
-	for (auto block : tempPiece.getBlocks()){
-		const vec3i& pos = block.first;
-		memcpy(v, defaultBlock, sizeof(defaultBlock));
-		for (int i = 0; i < 6; i++){
-			v[i].position += vec3f(pos);
+	const uint8_t defaultColor[] = {0x7F, 0x7F, 0xE5, 0xFF};
+	const uint8_t collidedColor[] = {0x7F, 0xE5, 0x7F, 0xFF};
 
-			if (pos == lastCollision.block and collision){
-				const uint8_t c[] = {0x7F, 0xE5, 0x7F, 0xFF};
-				memcpy(v[i].col, c, 4);
-			} 
-			else{
-				const uint8_t c[] = {0x7F, 0x7F, 0xE5, 0xFF};
-				memcpy(v[i].col, c, 4);
+	for (auto& block : tempPiece.getBlocks()){
+		const ivec3& pos = block.first;
+		memcpy(v, defaultBlock, 36 * sizeof(blockVert));
+
+		for (int i = 0; i < 6 * 6; i++){
+			v[i].position += pos;
+			memcpy(v[i].col, defaultColor, 4);
+		}
+
+		if (pos == lastCollision.block and collision){
+			int collidedFaceId = lastCollision.side * 6;
+			for (int i = 0; i < 6; i++){
+				memcpy(v[collidedFaceId + i].col, collidedColor, 4);
 			}
 		}
 
-		v += 6;
+		v += 6 * 6;
 	}
+
+	blocksVAO->assign(count * 6 * 6, buf);
+	delete [] buf;
 }
-
-
 
 void EditingScreen::update(){
 	//set up perspective projection
-	projection = mat4::perspectiveProjection(80.0f, (float)windowResolution.x / (float)windowResolution.y, 1e-2f, 1e3f);
+	projection = mat4::perspectiveProjection(80.0f, (float)windowResolution.x / (float)windowResolution.y, 1e-2f, 1e4f);
 
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LESS); //normal
 	glDisable(GL_BLEND);
+	glDepthFunc(GL_LESS); //normal
+	glActiveTexture(GL_TEXTURE0);
 
-	//3d view
+	blockShader->use();
+	glUniform1i(blockShader->getUniformLocation("texture"), 0);
+
+
+	//draw current piece, pushing the solid planes back a little so that the lines will show, even at acute angles
+	mat4 model = mat4::identity();
+	mat4 mvp = projection * view * model;
+	mat3 texMatrix = mat3::identity();
+
+	bool inverseSuccess;
+	mat3 norMatrix = mat3::fromMat4(model).inverse(inverseSuccess).transpose();
+
+	if (!inverseSuccess){
+		fprintf(stderr, "piece editor: no well defined normal matrix for the blocks\n");
+	}
+
+	glUniformMatrix4fv(blockShader->getUniformLocation("modelViewProjectionMatrix"), 1, GL_FALSE, (const GLfloat*)mvp.data);
+	glUniformMatrix4fv(blockShader->getUniformLocation("modelMatrix"), 1, GL_FALSE, (const GLfloat*)model.data);
+	glUniformMatrix3fv(blockShader->getUniformLocation("textureMatrix"), 1, GL_FALSE, (const GLfloat*)texMatrix.data);
+	glUniformMatrix3fv(blockShader->getUniformLocation("normalMatrix"), 1, GL_FALSE, (const GLfloat*)norMatrix.data);
+
+	vec3 pointLight(0.0f);
+	if (!tooFar){
+		pointLight = lastCollision.point;
+	}
+	glUniform3f(blockShader->getUniformLocation("pointLightPosition"), pointLight.x, pointLight.y, pointLight.z);
+
+	blocksVAO->bind();
+	//glEnable(GL_POLYGON_OFFSET_FILL);
+	//glPolygonOffset(1.0f, 1.0f);
+
+	//draw solid cubes
+	glDrawArrays(GL_TRIANGLES, 0, blocksVAO->getVerticesAssigned());
+
+	//draw lines
+	//glDisable(GL_POLYGON_OFFSET_FILL);
+	//glDrawArrays(GL_LINES, 0, blocksVAO->getVerticesAssigned());
+
+	if (!tooFar){
+		//also draw the extruded block
+		model = mat4::translation(extrudedBlock);
+		mvp = projection * view * model;
+		texMatrix = mat3::identity();
+		norMatrix = mat3::fromMat4(model).inverse(inverseSuccess).transpose();
+
+		if (!inverseSuccess){
+			fprintf(stderr, "piece editor: no well defined normal matrix for the extruded block\n");
+		}
+
+		glUniformMatrix4fv(blockShader->getUniformLocation("modelViewProjectionMatrix"), 1, GL_FALSE, (const GLfloat*)mvp.data);
+		glUniformMatrix4fv(blockShader->getUniformLocation("modelMatrix"), 1, GL_FALSE, (const GLfloat*)model.data);
+		glUniformMatrix3fv(blockShader->getUniformLocation("textureMatrix"), 1, GL_FALSE, (const GLfloat*)texMatrix.data);
+		glUniformMatrix3fv(blockShader->getUniformLocation("normalMatrix"), 1, GL_FALSE, (const GLfloat*)norMatrix.data);
+
+		singleBlockVAO->bind();
+		glEnable(GL_BLEND);
+		glDrawArrays(GL_TRIANGLES, 0, singleBlockVAO->getVerticesAssigned());
+	}
+
+
+	glEnable(GL_BLEND);
+	lineShader->use();
+	glUniform1i(lineShader->getUniformLocation("texture"), 0);
+
 	int gridCenterX, gridCenterZ;
 	gridCenterX = extrudedBlock.x;
 	gridCenterZ = extrudedBlock.z;
 
-	/*//draw the grid
-	glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
-	glLineWidth(2.0f);
-
-	blurredBlob->bind();
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_MIRRORED_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_MIRRORED_REPEAT);
-
 	if (!collision and !tooFar){
-		glEnable(GL_BLEND);
-		glBegin(GL_LINES);
+		//draw the grid
+		blurredBlob->bind();
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
 
-		for (int i = -FLOATING_GRID_EXTENT; i < FLOATING_GRID_EXTENT; i++){
-			int gx = gridCenterX + i;
-			int gz0 = gridCenterZ - FLOATING_GRID_EXTENT;
-			int gz1 = gridCenterZ + FLOATING_GRID_EXTENT;
+		model = mat4::translation(vec3(gridCenterX, 0.0f, gridCenterZ));
+		mvp = projection * view * model;
 
-			glTexCoord2f((i + 0.0f) / FLOATING_GRID_EXTENT, -1.0f); glVertex3i(gx, 0, gz0);
-			glTexCoord2f((i + 0.0f) / FLOATING_GRID_EXTENT,  1.0f); glVertex3i(gx, 0, gz1);
-		}
+		vec2 modOffset = vec2(fmod(lastCollision.point.x, 1.0f), fmod(lastCollision.point.z, 1.0f));
+		if (modOffset.x < 0.0f) modOffset.x += 1.0f;
+		if (modOffset.y < 0.0f) modOffset.y += 1.0f;
+		modOffset /= (FLOATING_GRID_EXTENT + 1) * 2;
 
-		for (int i = -FLOATING_GRID_EXTENT; i < FLOATING_GRID_EXTENT; i++){
-			int gx0 = gridCenterX - FLOATING_GRID_EXTENT;
-			int gx1 = gridCenterX + FLOATING_GRID_EXTENT;
-			int gz = gridCenterZ + i;
+		texMatrix = mat3::translation(-modOffset);
 
-			glTexCoord2f(-1.0f, (i + 0.0f) / FLOATING_GRID_EXTENT); glVertex3i(gx0, 0, gz);
-			glTexCoord2f( 1.0f, (i + 0.0f) / FLOATING_GRID_EXTENT); glVertex3i(gx1, 0, gz);
-		}
+		glUniformMatrix4fv(lineShader->getUniformLocation("modelViewProjectionMatrix"), 1, GL_FALSE, (const GLfloat*)mvp.data);
+		glUniformMatrix4fv(lineShader->getUniformLocation("modelMatrix"), 1, GL_FALSE, (const GLfloat*)model.data);
+		glUniformMatrix3fv(lineShader->getUniformLocation("textureMatrix"), 1, GL_FALSE, (const GLfloat*)texMatrix.data);
 
-		glEnd();
-	}*/
-
-	//draw current piece, pushing the solid planes back a little so that the lines will show, even at acute angles
-	glEnable(GL_POLYGON_OFFSET_FILL);
-	glPolygonOffset(1.0f, 1.0f);
-	//draw solid cubes
-	glDisable(GL_POLYGON_OFFSET_FILL);
-	//draw lines
-	glEnd();
-
-	if (!tooFar){
-		//also draw the extruded block
-		glEnable(GL_BLEND);
-		glBegin(GL_QUADS);
-		glColor4f(0.7f, 0.4f, 0.4f, 0.5f);
-		glTranslatef(extrudedBlock.x, extrudedBlock.y, extrudedBlock.z);
-		glutSolidCube(1.0);
-		glTranslatef(-extrudedBlock.x, -extrudedBlock.y, -extrudedBlock.z);
-		glEnd();
+		gridVAO->bind();
+		glLineWidth(2.0f);
+		glDrawArrays(GL_LINES, 0, gridVAO->getVerticesAssigned());
 	}
 
-
-	/*
 	//origin arrows, x-ray
+	model = mat4::identity();
+	mvp = projection * view * model;
+	texMatrix = mat3::identity();
+	glUniformMatrix4fv(lineShader->getUniformLocation("modelViewProjectionMatrix"), 1, GL_FALSE, (const GLfloat*)mvp.data);
+	glUniformMatrix4fv(lineShader->getUniformLocation("modelMatrix"), 1, GL_FALSE, (const GLfloat*)model.data);
+	glUniformMatrix3fv(lineShader->getUniformLocation("textureMatrix"), 1, GL_FALSE, (const GLfloat*)texMatrix.data);
+
 	glDisable(GL_DEPTH_TEST);
-	//glDepthFunc(GL_ALWAYS);
 	glLineWidth(4.0f);
-	glBegin(GL_LINES);
-	glColor4f(1.0f, 0.0f, 0.0f, 1.0f);
-	glTexCoord2f(0.0f, 0.0f); glVertex3f(0.0f, 0.0f, 0.0f);
-	glTexCoord2f(1.0f, 1.0f); glVertex3f(1.0f, 0.0f, 0.0f);
 
-	glColor4f(0.0f, 1.0f, 0.0f, 1.0f);
-	glTexCoord2f(0.0f, 0.0f); glVertex3f(0.0f, 0.0f, 0.0f);
-	glTexCoord2f(1.0f, 1.0f); glVertex3f(0.0f, 1.0f, 0.0f);
+	axesVAO->bind();
+	blurredBlob->bind();
+	glDrawArrays(GL_LINES, 0, 6);
 
-	glColor4f(0.0f, 0.0f, 1.0f, 1.0f);
-	glTexCoord2f(0.0f, 0.0f); glVertex3f(0.0f, 0.0f, 0.0f);
-	glTexCoord2f(1.0f, 1.0f); glVertex3f(0.0f, 0.0f, 1.0f);
-	glEnd();
-	CHECK_GL_ERROR*/
 
 	//debug info
 	const int labelBufLength = 256;
@@ -398,12 +430,34 @@ void EditingScreen::update(){
 	snprintf(labelBuf, labelBufLength, "eye at (%.3f, %.3f, %.3f)", cameraEye.x, cameraEye.y, cameraEye.z);
 	eyeLabel->setText(labelBuf);
 
-	//mouseInfo.mouse ray dir position
-	snprintf(labelBuf, labelBufLength, "mouseInfo.mouse dir (%.3f, %.3f, %.3f)", mouseRayDir.x, mouseRayDir.y, mouseRayDir.z);
+	//mouse ray dir position
+	snprintf(labelBuf, labelBufLength, "mouse dir (%.3f, %.3f, %.3f)", mouseRayDir.x, mouseRayDir.y, mouseRayDir.z);
 	mouseRayLabel->setText(labelBuf);
 
+	//mouse ray collision with grid or material
+	if (!tooFar){
+		snprintf(labelBuf, labelBufLength, "collision at (%d, %d, %d), (%.3f, %.3f, %.3f)",
+			lastCollision.block.x, lastCollision.block.y, lastCollision.block.z,
+			lastCollision.point.x, lastCollision.point.y, lastCollision.point.z);
+	}
+	else{
+		snprintf(labelBuf, labelBufLength, "no collision in reasonable range");
+	}
+	collisionLabel->setText(labelBuf);
+
+	//extruded block
+	if (!tooFar){
+		snprintf(labelBuf, labelBufLength, "collision with %s, leading to new block at (%d, %d, %d)",
+			collision? "block" : "floor",
+			extrudedBlock.x, extrudedBlock.y, extrudedBlock.z);
+	}
+	else{
+		snprintf(labelBuf, labelBufLength, "");
+	}
+	newBlockLabel->setText(labelBuf);
+
 	//camera rotation
-	vec3f turnDiveDist = cameraControl->getTurnDiveDist();
+	vec3 turnDiveDist = cameraControl->getTurnDiveDist();
 	snprintf(labelBuf, labelBufLength, "turn %.2f, dive %.2f", turnDiveDist.x, turnDiveDist.y);
 	cameraAngleLabel->setText(labelBuf);
 }

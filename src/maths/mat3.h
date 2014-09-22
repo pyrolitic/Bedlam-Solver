@@ -6,31 +6,40 @@
 #include <ostream>
 #include <string>
 
-class vec4;
+#include "vec.h"
 
-#define _SWAP$(a, b) do {temp = a; a = b; b = temp;} while(false)
-
-class mat3 {
+template<typename T>
+class mat3T {
 	public:
 		union {
 				struct {
-						float _11, _12, _13;
-						float _21, _22, _23;
-						float _31, _32, _33;
+						/* row major
+						T _11, _12, _13;
+						T _21, _22, _23;
+						T _31, _32, _33;*/ 
+
+						//column major
+						T _11, _21, _31;
+						T _12, _22, _32;
+						T _13, _23, _33;
 				};
 
-				float data[9];
+				T cols[3][3];
+				T data[9];
 		};
 
-		mat3() {
+		mat3T() {
+			memset(data, 0, 9 * sizeof(T));
 		}
 
-		mat3(const mat3& m) {
-			memcpy(data, m.data, 9 * sizeof(float));
+		template <typename S>
+		mat3T(const mat3T<S>& m) {
+			for (int i = 0; i < 9; i++) data[i] = m.data[i];
 		}
 
-		void operator =(const mat3& m) {
-			memcpy(data, m.data, 9 * sizeof(float));
+		template <typename S>
+		void operator =(const mat3T<S>& m) {
+			for (int i = 0; i < 9; i++) data[i] = m.data[i];
 		}
 
 		std::string represent() {
@@ -64,240 +73,224 @@ class mat3 {
 		}
 
 		//get
-		vec4 operator *(const vec4& v) const {
-			return vec4(_11 * v.x + _12 * v.y + _13 * v.z,
-			/*         */_21 * v.x + _22 * v.y + _23 * v.z,
-			/*         */_31 * v.x + _32 * v.y + _33 * v.z);
+		template <typename S>
+		vec2T<T> multVec2(const vec2T<S>& v, T vz = 1) const {
+			return vec4(_11 * v.x + _12 * v.y + _13 * vz,
+			            _21 * v.x + _22 * v.y + _23 * vz,
+			            _31 * v.x + _32 * v.y + _33 * vz);
 		}
 
-		float det() const {
-			float a = _11 * _22 * _33;
-			float b = _11 * _23 * _32;
-			float c = _12 * _21 * _33;
-			float d = _12 * _23 * _31;
-			float e = _13 * _21 * _32;
-			float f = _13 * _22 * _31;
+		template <typename S>
+		vec3T<T> operator *(const vec3T<S>& v) const {
+			return vec4(_11 * v.x + _12 * v.y + _13 * v.z,
+			            _21 * v.x + _22 * v.y + _23 * v.z,
+			            _31 * v.x + _32 * v.y + _33 * v.z);
+		}
+
+		template <typename S>
+		operator mat3T<S>(){
+			mat3T<S> m;
+			for (int i = 0; i < 9; i++) m.data[i] = data[i];
+			return m;
+		}
+
+		template<typename S>
+		mat3T<T> operator *(const mat3T<S>& m) const {
+			mat3T<T> ret;
+
+			ret._11 = _11 * m._11 + _12 * m._21 + _13 * m._31;
+			ret._12 = _11 * m._12 + _12 * m._22 + _13 * m._32;
+			ret._13 = _11 * m._13 + _12 * m._23 + _13 * m._33;
+
+			ret._21 = _21 * m._11 + _22 * m._21 + _23 * m._31;
+			ret._22 = _21 * m._12 + _22 * m._22 + _23 * m._32;
+			ret._23 = _21 * m._13 + _22 * m._23 + _23 * m._33;
+
+			ret._31 = _31 * m._11 + _32 * m._21 + _33 * m._31;
+			ret._32 = _31 * m._12 + _32 * m._22 + _33 * m._32;
+			ret._33 = _31 * m._13 + _32 * m._23 + _33 * m._33;
+
+			return ret;
+		}
+
+		template<typename S>
+		mat3T<T> operator *(S f) const {
+			mat3T<T> ret;
+			for (int i = 0; i < 9; i++){
+				ret.data[i] = data[i] * f;
+			}
+
+			return ret;
+		}
+
+		template<typename S>
+		mat3T<T> operator /(S f) const {
+			mat3T<T> ret;
+			for (int i = 0; i < 9; i++){
+				ret.data[i] = data[i] / f;
+			}
+
+			return ret;
+		}
+
+		vec3T<T> getCol(int col) const {
+			assert(col >= 0 and col < 3);
+			//return vec4T<T>(rows[0][col], rows[1][col], rows[2][col]); //row major
+			return vec4T<T>(cols[col][0], cols[col][1], cols[col][2]); //column major
+		}
+
+		vec3T<T> getRow(int row) const {
+			assert(row >= 0 and row < 3);
+			//return vec4T<T>(rows[row][0], rows[row][1], rows[row][2]); //row major
+			return vec4T<T>(cols[0][row], cols[1][row], cols[2][row]); //column major
+		}
+
+		T determinant() const {
+			T a = _11 * _22 * _33;
+			T b = _11 * _23 * _32;
+			T c = _12 * _21 * _33;
+			T d = _12 * _23 * _31;
+			T e = _13 * _21 * _32;
+			T f = _13 * _22 * _31;
 
 			return a - b - c + d + e - f;
 		}
 
-		//manipulate
-		void transpose() {
-			float temp;
-			_SWAP$(_12, _21);
-			_SWAP$(_13, _31);
-			_SWAP$(_23, _32);
+		mat3T<T> transpose() const{
+			mat3T<T> m;
+
+			m._11 = _11; m._12 = _21; m._13 = _31;
+			m._21 = _12; m._22 = _22; m._23 = _32;
+			m._31 = _13; m._32 = _23; m._33 = _33;
+
+			return m;
 		}
 
-		void adjoint() {
-			mat3 temp;
+		mat3T<T> inverse(bool& success) const{
+			//
+			//  -1     T
+			// A   = (C ) / det(A)
+			//
+			// where C is the matrix of cofactors
 
-			temp._11 = _22 * _33 - _32 * _23;
-			temp._12 = _12 * _33 - _32 * _13;
-			temp._13 = _12 * _23 - _22 * _13;
-			temp._21 = _21 * _33 - _31 * _23;
-			temp._22 = _11 * _33 - _31 * _13;
-			temp._23 = _11 * _23 - _21 * _13;
-			temp._31 = _21 * _32 - _31 * _22;
-			temp._32 = _11 * _32 - _31 * _12;
-			temp._33 = _11 * _22 - _21 * _12;
+			mat3T<T> cofactors;
 
-			memcpy(data, temp.data, 9 * sizeof(float));
+			//in-place transpose
+			cofactors._11 =  (_22 * _33 - _32 * _23);
+			cofactors._12 = -(_12 * _33 - _32 * _13);
+			cofactors._13 =  (_12 * _23 - _22 * _13);
+
+			cofactors._21 = -(_21 * _33 - _31 * _23);
+			cofactors._22 =  (_11 * _33 - _31 * _13);
+			cofactors._23 = -(_11 * _23 - _21 * _13);
+
+			cofactors._31 =  (_21 * _32 - _31 * _22);
+			cofactors._32 = -(_11 * _32 - _31 * _12);
+			cofactors._33 =  (_11 * _22 - _21 * _12);
+			
+			//calculate determinant
+			//since we already have the cofactors, just multiply the top row elements
+			//by their corresponding cofactors (which are also negated as needed)
+			//and add them together
+			T det = _11 * cofactors._11 + _12 * cofactors._21 + _13 * cofactors._31;
+
+			//a zero (or close to) determinant means the matrix does not have an inverse
+			success = (fabs(det) > 1e-5);
+			return cofactors / det;
 		}
 
-		void invert() {
-			mat3 temp;
-			float inv = 1.0f / det();
-
-			temp._11 = (_22 * _33 - _32 * _23) * inv;
-			temp._12 = (-_12 * _33 + _32 * _13) * inv;
-			temp._13 = (_12 * _23 - _22 * _13) * inv;
-			temp._21 = (-_21 * _33 + _31 * _23) * inv;
-			temp._22 = (_11 * _33 - _31 * _13) * inv;
-			temp._23 = (-_11 * _23 + _21 * _13) * inv;
-			temp._31 = (_21 * _32 - _31 * _22) * inv;
-			temp._32 = (-_11 * _32 + _31 * _12) * inv;
-			temp._33 = (_11 * _22 - _21 * _12) * inv;
-
-			memcpy(data, temp.data, 9 * sizeof(float));
-		}
-
-		void operator *=(const mat3& m) {
-			mat3 temp;
-
-			temp._11 = _11 * m._11 + _12 * m._21;
-			temp._12 = _11 * m._12 + _12 * m._22;
-			temp._21 = _21 * m._11 + _22 * m._21;
-			temp._22 = _21 * m._12 + _22 * m._22;
-
-			memcpy(data, temp.data, 9 * sizeof(float));
-		}
-
-		void operator +=(const mat3& m) {
+		void operator +=(const mat3T<T>& m) {
 			for (int i = 0; i < 9; i++)
 				data[i] += m.data[i];
 		}
 
-		void operator -=(const mat3& m) {
+		void operator -=(const mat3T<T>& m) {
 			for (int i = 0; i < 9; i++)
 				data[i] -= m.data[i];
 		}
 
-		void operator *=(float f) {
+		void operator *=(const mat3T<T>& m) {
+			*this = *this * m;
+		}
+
+		void operator *=(T f) {
 			for (int i = 0; i < 9; i++)
 				data[i] *= f;
 		}
 
-		void operator /=(float f) {
+		void operator /=(T f) {
 			for (int i = 0; i < 9; i++)
 				data[i] /= f;
 		}
 
-		//completely change to
-		void setIdentity() {
-			memset(data, 0, 9 * sizeof(float));
-			_11 = 1.0f;
-			_22 = 1.0f;
-			_33 = 1.0f;
+		//Generators
+		static mat3T<T> identity() {
+			mat3T<T> m;
+
+			m._11 = T(1);
+			               m._22 = T(1);
+			                              m._33 = T(1);
+
+			return m;
+		}
+		
+		//2d
+		template <typename S>
+		static mat3T<T> translation(const vec2T<S>& v) {
+			mat3T<T> m;
+
+			m._11 = T(1);                  m._13 = v.x;
+			               m._22 = T(1);   m._23 = v.y;
+			                               m._33 = T(1);
+
+			return m;
 		}
 
-		void setTranslation(const vec4& v, bool erase = false) {
-			//static_assert(false, "unimplemented");
-			//TODO: use mat3 as a 2d mat4?
+		template <typename S>
+		static mat3T<T> scale(const vec2T<S>& v) {
+			mat3T<T> m;
+
+			m._11 = v.x;                               
+			               m._22 = v.y;              
+			                             m._33 = T(1);
+
+			return m;
 		}
 
-		void setOrientation(const mat2& m) {
-			_11 = m._11;
-			_12 = m._12;
-			_21 = m._21;
-			_22 = m._22;
+		static mat3T<T> scale(T s){
+			return scale(vec2T<T>(s));
 		}
 
-		void setRotX(float theta) {
-			float c = cos(theta);
-			float s = sin(theta);
+		static mat3T<T> rotation(T theta) {
+			T c = cos(theta);
+			T s = sin(theta);
 
-			_11 = 1.0f;
-			_12 = 0.0f;
-			_13 = 0.0f;
-			_21 = 0.0f;
-			_22 = c;
-			_23 = -s;
-			_31 = 0.0f;
-			_32 = s;
-			_33 = c;
+			// c -s  0
+			// s  c  0
+			// 0  0  1
+
+			mat3T<T> m; //all 0
+
+			m._11 = cos(theta);   m._12 = T(0);
+			m._21 = s;            m._22 = -sin(theta);  
+			                                            m._33 = T(1);
+
+			return m;
 		}
 
-		void setRotY(float theta) {
-			float c = cos(theta);
-			float s = sin(theta);
+		template <typename S>
+		static mat3T<T> fromMat4(const mat4T<S>& m4) {
+			mat3T<T> m;
 
-			_11 = c;
-			_12 = 0.0f;
-			_13 = s;
-			_21 = 0.0f;
-			_22 = 1.0f;
-			_23 = 0.0f;
-			_31 = -s;
-			_32 = 0.0f;
-			_33 = c;
-		}
+			m._11 = m4._11;  m._12 = m4._12;  m._13 = m4._13;
+			m._21 = m4._21;  m._22 = m4._22;  m._23 = m4._23;
+			m._31 = m4._31;  m._32 = m4._32;  m._33 = m4._33;
 
-		void setRotZ(float theta) {
-			float c = cos(theta);
-			float s = sin(theta);
-
-			_11 = c;
-			_12 = -s;
-			_13 = 0.0f;
-			_21 = s;
-			_22 = c;
-			_23 = 0.0f;
-			_31 = 0.0f;
-			_32 = 0.0f;
-			_33 = 1.0f;
-		}
-
-		void setRotation(float rotX, float rotY, float rotZ) {
-			float sp = sin(rotX);
-			float cp = cos(rotX);
-
-			float sh = sin(rotY);
-			float ch = cos(rotY);
-
-			float sr = sin(rotZ);
-			float cr = cos(rotZ);
-
-			_11 = ch * cp;
-			_12 = sh * cp;
-			_13 = -sp;
-			_21 = ch * sp * sr - sh * cr;
-			_22 = sh * sp * sr + ch * cr;
-			_23 = cp * sr;
-			_31 = ch * sp * cr + sh * sr;
-			_32 = sh * sp * cr - ch * sr;
-			_33 = cp * cr;
-		}
-		void setRotation(const vec4& axis, float theta) {
-			vec4 a = (axis).normal();
-
-			float c = cos(theta);
-			float s = sin(theta);
-			float t = 1.0f - c;
-
-			float a1 = a.x * a.y * t;
-			float b1 = a.z * s;
-
-			float a2 = a.x * a.z * t;
-			float b2 = a.y * s;
-
-			float a3 = a.y * a.z * t;
-			float b3 = a.x * s;
-
-			_11 = c + a.x * a.x * t;
-			_12 = a1 - b1;
-			_13 = a2 + b2;
-			_21 = a1 + b1;
-			_22 = c + a.y * a.y * t;
-			_23 = a3 - b3;
-			_31 = a2 - b2;
-			_32 = a3 + b3;
-			_33 = c + a.z * a.z * t;
-		}
-
-		void setPointTo(const vec4& forward, const vec4& up) {
-			vec4 f = forward.normal();
-			vec4 U = up.normal();
-
-			vec4 s = f ^ U;
-			vec4 u = s ^ f;
-
-			_11 = s.x;
-			_12 = u.x;
-			_13 = f.x;
-			_21 = s.y;
-			_22 = u.y;
-			_23 = f.y;
-			_31 = s.z;
-			_32 = u.z;
-			_33 = f.z;
-		}
-		void setVecs(const vec4& a, const vec4& b, const vec4& c) {
-			_11 = a.x;
-			_12 = b.x;
-			_13 = c.x;
-			_21 = a.y;
-			_22 = b.y;
-			_23 = c.y;
-			_31 = a.z;
-			_32 = b.z;
-			_33 = c.z;
+			return m;
 		}
 };
 
-inline std::ostream& operator<<(std::ostream& stream, mat3& m) {
-	stream << m.represent();
-	return stream;
-}
+typedef mat3T<float> mat3;
+typedef mat3T<double> dmat3;
 
-#endif /* VEC_MATH_BASE_MAT3_H */
+#endif

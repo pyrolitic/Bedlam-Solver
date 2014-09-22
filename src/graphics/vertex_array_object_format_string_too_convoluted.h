@@ -164,7 +164,7 @@ class VertexArrayObject {
 				int index = 0;
 				int size = nextByte;
 
-				for (auto item : items){
+				for (auto& item : items){
 					if (item.presentation == 'C'){
 						glVertexAttribPointer(index, item.size, item.type, GL_FALSE, size, (void*) (item.offset));
 					}

@@ -15,14 +15,14 @@ extern const uint8_t fontBitmapData[];
 class TextRender{
 public:
 	//TODO: line wrapping
-	static void prepare(std::vector<uiVert>& cache, vec2i& size, const char* text, float maxWidth = 0.0f){
+	static void prepare(std::vector<uiVert>& cache, ivec2& size, const char* text, float maxWidth = 0.0f){
 		assert(fontTexture);
 		assert(text);
 
 		cache.clear();
 		int len = strlen(text);
 
-		vec2f pen(0.0f, 0.0f);
+		vec2 pen(0.0f, 0.0f);
 		for (int i = 0; i < len; i++){
 			uint8_t c = (uint8_t) text[i];
 			int w = c & 0xF;

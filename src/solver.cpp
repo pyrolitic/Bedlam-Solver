@@ -12,214 +12,338 @@
 using namespace std;
 
 void Solver::solve() {
+	if (pieceImages.empty()){
+		printf("solver: nothing to do\n");
+		return;
+	}
+
 	//make every image of every piece
-	for (std::list<DensePiece> imageList : pieceImages){
-		DensePiece& original = imageList.back();
+	for (int pieceId = 0; pieceId < originals.size(); pieceId++){
+		auto& imageList = pieceImages[pieceId];
 
 		for (int i = 0; i < ORIENTATIONS; i++){
-			imageList.emplace_back(DensePiece(original, i)); //unique rotation $i
+			imageList.emplace_back(Piece(originals[pieceId], i)); //unique orientation $i
+			if (!(imageList.back().size <= dimensions)){
+				//printf("discarding image that won't fit\n");
+				imageList.pop_back(); //won't fit
+			}
 		}
 
 		//TODO: if this is too slow, maybe hash everything and compare hashes first
-		int amount = original.size.x * original.size.y * original.size.z; 
+		int amount = imageList.front().size.x * imageList.front().size.y * imageList.front().size.z; 
 		imageList.sort([&amount](const DensePiece& one, const DensePiece& other) -> bool{
-			return memcmp(one.data, other.data, amount * sizeof(uint8_t)) > 0;
+			if (one.size.x < other.size.x) return true;
+			else if (one.size.x == other.size.x){
+				if (one.size.y < other.size.y) return true;
+				else if (one.size.y == other.size.y){
+					if (one.size.z < other.size.z) return true;
+					else if (one.size.z == other.size.z){
+						return memcmp(one.data, other.data, amount) < 0;
+					}
+				}
+			}
+
+			return false;
 		});
 
 		//now remove duplicates
+		int removes = 0;
 		auto prev = imageList.begin();
 		for (auto it = std::next(prev); it != imageList.end();){
+			auto next = std::next(it);
+
 			if (*prev == *it){
-				auto next = std::next(it);
 				imageList.erase(it);
-				it = next;
+				removes++;
 			}
 			else{
-				it++;
+				prev = it;
 			}
+
+			it = next;
+		}
+
+		/*for (auto& im : imageList){
+			printf("DensePiece(orientation %02d): size = (%d %d %d)\n", im.orientation, im.size.x, im.size.y, im.size.z);
+
+			for (int z = 0; z < im.size.z; z++){
+				for (int y = 0; y < im.size.y; y++){
+					for (int x = 0; x < im.size.x; x++){
+						if (im.data[LOOKUP(ivec3(x, y, z), im.size)]){
+							printf("(%d %d %d), ", x, y, z);
+						}
+					}
+				}
+			}
+
+			printf("\n\n");
+		}*/
+		printf("piece #%d: culled %d duplicate images\n", pieceId, removes);
+	}
+
+	//in order to prevent rotated duplicates of the same solution, find the image with most distinct images, 
+	//and later, for one of its instances, include only the original orientation
+	int mostDistinctImages = pieceImages[0].size();
+	auto* mostDistinctImagesHolder = &pieceImages[0];
+	for (int pieceId = 1; pieceId < originals.size(); pieceId++){
+		auto& imageList = pieceImages[pieceId];
+		if (imageList.size() > mostDistinctImages){
+			mostDistinctImages = imageList.size();
+			mostDistinctImagesHolder = &imageList;
 		}
 	}
 
-	//count the amount of nodes and of rows
-	//each row is a permutation of an image of a piece
-	//the number of permutations per piece is the number of images times the number of possible positions
-	nodeAmount = 0;
-	int rows = 0;
-	pieceInstances = 0;
-	for (int i = 0; i < pieceImages.size(); i++){
-		auto listImages = pieceImages[i];
-		int locations = 0;
+	printf("solver: most distinct images: %d, of piece #%d\n", mostDistinctImages, mostDistinctImagesHolder - pieceImages.data());
 
-		for (auto image : listImages){
-			vec3i wiggle = (dimensions - image.size) + vec3i(1, 1, 1);
-			locations += wiggle.x * wiggle.y * wiggle.z;
+	//count the amount of nodes and of rows
+	//each row is a permutation of an image of a piece (excluding the header row)
+	//the number of permutations per piece is the number of images times the number of possible positions
+	rows = 0;
+	nodeAmount = 0;
+	pieceInstances = 0;
+
+	for (int i = 0; i < pieceImages.size(); i++){
+		auto& listImages = pieceImages[i];
+		int firstOnlyLocations = 0;
+		int allLocations = 0;
+
+		//for the first copy of the piece with the most distinct images, only consider the first orientation
+		for (auto it = listImages.begin(); it != listImages.end(); it++){
+			ivec3 wiggle = (dimensions - it->size) + ivec3(1, 1, 1);
+			allLocations += wiggle.x * wiggle.y * wiggle.z;
+			if (it == listImages.begin()) firstOnlyLocations = wiggle.x * wiggle.y * wiggle.z;
 		}
 
-		rows += locations;
-		nodeAmount += locations * (piecesMass[i] + 1); // +1 is for the piece flag on the right side of the matrix
-
+		if (&listImages == mostDistinctImagesHolder){
+			rows += allLocations * (piecesCopies[i] - 1) + firstOnlyLocations;
+			nodeAmount += allLocations * piecesMass[i] * (piecesCopies[i] - 1) + firstOnlyLocations * piecesMass[i];
+		}
+		else{
+			rows += allLocations * piecesCopies[i];
+			nodeAmount += allLocations * piecesMass[i] * piecesCopies[i];
+		}
 		pieceInstances += piecesCopies[i];
 	}
 
 	cols = spaces + pieceInstances;
+	printf("solver: there are %d columns and %d rows in the sparse matrix\n", cols, rows);
+
 	partialSolutionRows = (node**) malloc(cols * sizeof(node*));
-	printf("there are %d columns and %d rows in the sparse matrix\n", cols, rows);
+	memset(partialSolutionRows, 0, cols * sizeof(node*));
 
-	//create the header, which starts at the root
-	header = (header_node*) malloc(cols * sizeof(header_node));
-	memset(header, 0, cols * sizeof(header_node));
-
-	root.size = 0;
-	root.right = &header[0];
-	root.left = &header[cols - 1];
-
-	//make header horizontal links
-	for (int i = 0; i < cols; i++) {
-		header_node& h = header[i];
-		h.right = (i == cols - 1) ? &root : &header[i + 1];
-		h.left = (i == 0) ? &root : &header[i - 1];
-	}
-
-	for (int i = 0; i < spaces; i++){
-		header_node& h = header[i];
-		h.symbol = i;
-		h.copy = SOLVER_SPACE_NODE_COPY_VALUE;
-	}
+	//create the header top row and the ref nodes
+	//keep them each in a separate pool from the meterial nodes, to be able to tell if a neighbour is a header or a ref node
+	refNodes = (refNode*) malloc(rows * sizeof(refNode));
+	headers = (headerNode*) malloc(cols * sizeof(headerNode));
+	memset(refNodes, 0, rows * sizeof(headerNode));
+	memset(headers, 0, cols * sizeof(headerNode));
 
 	int nodeId = 0;
-	for (int i = 0; i < pieceImages.size(); i++){
-		for (int c = 0; c < piecesCopies[i]; c++){
-			for (auto im : pieceImages[i]){
-				header_node& h = header[nodeId++];
-				h.symbol = i;
-				h.copy = c;
-				h.orientation = im.orientation;
-			}
+	for (int spaceId = 0; spaceId < spaces; spaceId++){
+		headerNode& h = headers[nodeId++];
+		h.spaceId = spaceId;
+		h.copyId = -1;
+		h.size = 0;
+	}
+
+	for (int pieceId = 0; pieceId < pieceImages.size(); pieceId++){
+		for (int copyId = 0; copyId < piecesCopies[pieceId]; copyId++){
+			headerNode& h = headers[nodeId++];
+			h.pieceId = pieceId;
+			h.copyId = copyId;
+			h.size = 0;
 		}
 	}
 
-	//allocate the exact amount of nodes
+	assert(nodeId == cols);
+
+	//make header horizontal links
+	for (int ci = 0; ci < cols; ci++) {
+		headerNode& h = headers[ci];
+		h.right = (ci == cols - 1) ? &root : &headers[ci + 1];
+		h.left = (ci == 0) ? &root : &headers[ci - 1];
+	}
+
+	//attach root to the left of the header row
+	root.size = 0;
+	root.right = &headers[0];
+	root.left = &headers[cols - 1];
+	root.down = root.up = nullptr; //won't ever be accessed
+
+	/* matrix is now
+
+	                all null
+	                 |             |                |                 |                        |               |                        |
+	loop from end - root  --  s0(0, 0, 0)  --  s1(1, 0, 0) -- sN(W-1, H-1, D-1) -- ... -- piece0_copy0 - piece0_copy_1 -- ... -- pieceN-1_copyC-1 -- loop back to root
+	                 |             |                |                 |                        |               |                        |
+	                also all null (stuff goes here)
+	*/
+
+	printf("solver: created the header row\n");
+
+	//allocate the exact amount of nodes required
 	nodes = (node*) malloc(nodeAmount * sizeof(node));
 	memset(nodes, 0, nodeAmount * sizeof(node));
 
-	//there is no way to access a node at a specific location directly, so we must build the matrix in a specific way;
+	//there is no way to access a node at a location directly, so we must build the matrix in a methodical way, row by row;
 
-	//store a line of the bottom-most processed nodes, so as to easily provide a top link to new nodes
+	//keep a line of the bottom-most processed nodes, so as to easily provide a top link to new nodes
 	node** lowestNodes = (node**) malloc(cols * sizeof(node*));
-	for (int i = 0; i < cols; i++){
-		lowestNodes[i] = &header[i];
+	for (int ci = 0; ci < cols; ci++){
+		lowestNodes[ci] = &headers[ci];
 	}
 
-	//create the sparse matrix row by row
-	int row = 0;
-	int pieceId = 0; //which piece instance are we on. not trivial to compute given the variable number of images and copies per piece, so just increment instead
+	int instanceId = 0; //non-trivial to compute
+	int rowId = 0; //also instance ID
 
 	for (int pieceId = 0; pieceId < pieceImages.size(); pieceId++){
-		auto pieceList = pieceImages[pieceId];
+		auto& pieceList = pieceImages[pieceId];
 
 		//as many copies as requested
-		for(int copyId = 0; copyId < piecesCopies[pieceId]; copyId++){
+		for (int copyId = 0; copyId < piecesCopies[pieceId]; copyId++){
 
-			//every unique orientation
-			for (auto im : pieceList){
+			//every unique image (orientation);
+			//for the first instance of the piece with the most distinct images, only consider the first orientation
+			auto imEndIt = (copyId == 0 and &pieceList == mostDistinctImagesHolder)? std::next(pieceList.begin()) : pieceList.end();
 
-				//all possible locations
+			for (auto imIt = pieceList.begin(); imIt != imEndIt; imIt++){
+				auto& im = *imIt;
+				//printf("processing image %d, with size %d %d %d\n", im.data, im.size.x, im.size.y, im.size.z);
+
+				//all possible placements for this image
 				for (int bz = 0; bz <= dimensions.z - im.size.z; bz++) {
 					for (int by = 0; by <= dimensions.y - im.size.y; by++) {
 						for (int bx = 0; bx <= dimensions.x - im.size.x; bx++) {
+							//generate a single row
 
 							node* first = nullptr; //first in the row
 							node* last = nullptr; //last one to be added
 
 							//blocks - iterate in the order bz, by, bx so that the id increases at each step
+							int nodesInRow = 0; //debug
 							for (int k = 0; k < im.size.z; k++){
 								for (int j = 0; j < im.size.y; j++){
 									for (int i = 0; i < im.size.x; i++) {
-										if (im.query(vec3i(i, j, k))) {
+										if (im.query(ivec3(i, j, k))) {
 											int horizontalId = space(bx + i, by + j, bz + k);
 
+											nodesInRow++;
 											node* cell = newNode();
-											cell->colHeader = &header[horizontalId];
 
-											//vertical
+											//vertical links
 											lowestNodes[horizontalId]->down = cell;
 											cell->up = lowestNodes[horizontalId];
-											lowestNodes[horizontalId] = cell; //this is now the bottom-most node of this column
 
-											//horizontal
+											//horizontal links
 											if (last){
 												last->right = cell;
 												cell->left = last;
-												last = cell;
+												last = cell; //this is the now the right-most node of the column
 											}
 											else {
 												first = cell;
 												last = cell;
 											}
+
+											lowestNodes[horizontalId] = cell; //this is now the bottom-most node of this column
 										}
 									}
 								}
 							}
 
-							//add the ref node to the right of the position nodes
-							int horizontalId = spaces + pieceId;
-							node* ref = newNode();
+							assert(nodesInRow > 0);
+							assert(last);
 
-							ref->colHeader = &header[horizontalId];
-							assert(ref->colHeader->symbol == pieceId);
-							assert(ref->colHeader->copy == copyId);
+							//add the ref node to the right of the position nodes
+							int horizontalId = spaces + instanceId;
+							refNode* ref = &refNodes[rowId];
+
+							ref->orientation = im.orientation;
+							ref->location.set(bx, by, bz);
+
+							assert(headers[horizontalId].pieceId == pieceId);
+							assert(headers[horizontalId].copyId == copyId);
 
 							ref->up = lowestNodes[horizontalId];
-							lowestNodes[horizontalId]->down = ref;
-							lowestNodes[horizontalId] = ref;
+							lowestNodes[horizontalId]->down = (node*)ref;
+							lowestNodes[horizontalId] = (node*)ref;
 
-							
-							last->right = ref;
+							last->right = (node*)ref;
 							ref->left = last;
 
 							//wrap around the links
 							ref->right = first;
-							first->left = ref;
+							first->left = (node*)ref;
 
-							row++; //row done
+							rowId++; //row done
 						}
 					}
 				}
 			}
+
+			instanceId++;
 		}
 	}
 
+	assert(rowId == rows);
+
 	//lowestNodes now contains the final lowest nodes - connect them to the header nodes
 	for (int i = 0; i < cols; i++) {
-		lowestNodes[i]->down = &header[i];
-		header[i].up = lowestNodes[i];
+		lowestNodes[i]->down = &headers[i];
+		headers[i].up = lowestNodes[i];
 	}
 
 	free(lowestNodes);
+	lowestNodes = nullptr;
 
 	//count the nodes in each column
-	for (header_node* col = (header_node*) root.right; col != &root; col = (header_node*) col->right) {
+	for (headerNode* col = (headerNode*) root.right; col != &root; col = (headerNode*) col->right) {
 		col->size = 0;
 		for (node* item = col->down; item != col; item = item->down){
 			col->size++;
 		}
 	}
 
+	/* matrix is now
+
+	               null         everything else loops back to the lowest node on that column
+	                 |               |              |                    |                        |               |                         |
+	loop from end - root ------  (0, 0, 0) ---  (1, 0, 0) -- ... -- (W-1, H-1, D-1) -- ... -- piece0_copy0 -- piece0_copy_1 - ... -- pieceN-1_copyC-1 -- loop back to root            header row
+	                 |               |              |                    |                        |               |                         |
+	               null)  (loop - material  --------+------- ... ---  material  ------ ... ---  marker  ----------+---------- ... ----------+----------- loop back to first material  row 0
+	                                 |              |                    |                        |               |                         |
+	                       loop -----+---------  material -- ... ---  material  ------ ... -------+-----------  marker  ----- ... ----------+----------- loop back to first material  row 1
+	                                 |              |                    |                        |               |                         |            
+	                                ...            ...                  ...                      ...             ...                       ...
+	                                 |              |                    |                        |               |                         |            
+	                       loop -----+--------------+------- ... ---  material  ------ ... -------+---------------+---------- ... ------  marker  ------ loop back to first material  row R-1
+	                                 |              |                    |                        |               |                         |     
+	                             loop every column to back to the corresponding heading node
+
+	where a + is a lack of a node
+	*/
+
+	printf("solver: linked all nodes\n");
+
 	//fire it up
+	solutionsFound = 0;
 	search(0);
 
-	free(header);
-	free(partialSolutionRows);
+	//clean up
 	free(nodes);
+	free(headers);
+	free(refNodes);
+	free(partialSolutionRows);
+
+	printf("solver: found %d solutions\n", solutionsFound);
+	printf("solver: findHeaderNode performance: %d runs, %f lookups per run\n", findHeaderNodeGoes, (float)findHeaderNodeOps / findHeaderNodeGoes);
 }
 
 //Knuth's Dancing Links
 void Solver::search(int k) {
-	if (dieCommand) return;
-
 	//found a solution
 	if (root.right == &root or root.left == &root) {
-		printf("found solution\n");
+		printf("solver: found solution, k = %d\n", k);
 
 		//process solution
 		solutionPiece* solution = (solutionPiece*) malloc(pieceInstances * sizeof(solutionPiece));
@@ -228,50 +352,56 @@ void Solver::search(int k) {
 		for (int i = 0; i < k; i++) {
 			node* n = partialSolutionRows[i];
 
-			//go all the way to the end of the row, to the ref node
-			while (n->colHeader->copy == SOLVER_SPACE_NODE_COPY_VALUE){
-				n = n->left;
+			//find the ref node
+			while (!isRefNode(n)){
+				n = n->right;
 			}
 
-			header_node* ref = (header_node*) n;
-			solution[i].pieceId = ref->symbol;
-			solution[i].copyId = ref->copy;
+			refNode* ref = (refNode*) n;
+			headerNode* refHead = findHeaderNode(ref);
+
+			solution[i].pieceId = refHead->pieceId;
+			solution[i].copyId = refHead->copyId;
 			solution[i].orientationId = ref->orientation;
+			solution[i].position = ref->location;
 		}
 
 		accessLock.lock();
 		solutions.emplace_back(solution);
+		solutionsFound++;
 		accessLock.unlock();
+
 		return;
 	}
 
 	//choose a column
-	header_node* col = nullptr;
-	col = (header_node*) root.right;
+	headerNode* col = nullptr;
+	col = (headerNode*) root.right;
 
-	
 	//take the one with the least nodes in it
 	/*int s = (int)0x0FFFFFFF;
-	for (header_node* j = (header_node*) root.right; j != &root; j = (header_node*) j->right) {
+	for (headerNode* j = (headerNode*) root.right; j != &root; j = (headerNode*) j->right) {
 		if (j->size < s){
 			s = j->size;
 			col = j;
 		}
 	}*/
 
-	if(dieCommand) return;
+	if (dieCommand) return;
 	cover(col);
 
 	for (node* row = col->down; row != col; row = row->down) {
 		partialSolutionRows[k] = row;
 
-		for (node* j = row->right; j != row; j = j->right)
-			cover(j->colHeader);
+		for (node* j = row->right; j != row; j = j->right){
+			cover(findHeaderNode(j));
+		}
 
 		search(k + 1);
-		//and reverse
-		for (node* j = row->left; j != row; j = j->left)
-			uncover(j->colHeader);
+
+		for (node* j = row->left; j != row; j = j->left){
+			uncover(findHeaderNode(j));
+		}
 	}
 
 	uncover(col);

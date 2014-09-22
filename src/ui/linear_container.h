@@ -6,7 +6,7 @@
 
 #include <string>
 
-#include "../maths/vec2.h"
+#include "../maths/vec.h"
 
 #include "ui_elem.h"
 
@@ -27,7 +27,7 @@ public:
 
 	virtual ~LinearContainer() {}
 
-	void setSize(vec2i s){
+	void setSize(ivec2 s){
 		printf("attempting to resize a LinearContainer\n");
 	}
 
@@ -43,15 +43,15 @@ public:
 		size.set(0, 0);
 		for (UIElem* child : children){
 			if (child->getFlags() & UI_ACTIVE){
-				vec2i cs = child->getSize();
+				ivec2 cs = child->getSize();
 				int sep = LINEAR_CONTAINER_SEPARATION * (child != children.front()? 1 : 0);
 				if (orientation == LINEAR_CONTAINER_HORIZONTAL){
-					child->setPosition(pos + vec2i(size.x + sep, 0));
+					child->setPosition(pos + ivec2(size.x + sep, 0));
 					size.x += sep + cs.x;
 					if (cs.y > size.y) size.y = cs.y;
 				}
 				else{
-					child->setPosition(pos + vec2i(0, size.y + sep));
+					child->setPosition(pos + ivec2(0, size.y + sep));
 					size.y += sep + cs.y;
 					if (cs.x > size.x) size.x = cs.x;
 				}
@@ -60,25 +60,22 @@ public:
 	}
 
 	void addChild(UIElem* child){
-		assert(child->getParent() == nullptr); //no double custody
+		UIElem::addChild(child);
 
 		if (child->getFlags() & UI_ACTIVE){
-			vec2i cs = child->getSize();
+			ivec2 cs = child->getSize();
 			int sep = LINEAR_CONTAINER_SEPARATION * (children.empty()? 0 : 1);
 			if (orientation == LINEAR_CONTAINER_HORIZONTAL){
-				child->setPosition(pos + vec2i(size.x + sep, 0));
+				child->setPosition(pos + ivec2(size.x + sep, 0));
 				size.x += sep + cs.x;
 				if (cs.y > size.y) size.y = cs.y;
 			}
 			else{
-				child->setPosition(pos + vec2i(0, size.y + sep));
+				child->setPosition(pos + ivec2(0, size.y + sep));
 				size.y += sep + cs.y;
 				if (cs.x > size.x) size.x = cs.x;
 			}
 		}
-
-		child->setParent(this);
-		children.emplace_back(child);
 	}
 
 private:

@@ -1,4 +1,3 @@
-
 def mul(a, b):
 	m = [[] for i in range(4)]
 	for i in range(4):

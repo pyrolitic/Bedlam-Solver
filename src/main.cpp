@@ -13,12 +13,11 @@ std::vector<uiVert> TextInput::caretVerts;
 
 UIElem* UIElem::hover = nullptr;
 UIElem* UIElem::focus = nullptr;
+int UIElem::elemsAlive = 0;
 
 int main(int argc, char** argv){
 	glutInit(&argc, argv);
-	glutInitContextVersion (3, 3);
-	//glutInitContextFlags(GLUT_FORWARD_COMPATIBLE);
-	glutInitContextProfile(GLUT_CORE_PROFILE);
+	glutInitContextVersion (2, 1);
 
 	//create the main window
 	init();
@@ -42,6 +41,7 @@ int main(int argc, char** argv){
 	printf("glut main loop ended\n");
 	end();
 
-	printf("exited cleanly\n");
+	printf("UI elements still alive: %d\n", UIElem::elemsAlive);
+	printf("exited cleanly (but can't promise no leaks or corruption)\n");
 	return 0;
 }

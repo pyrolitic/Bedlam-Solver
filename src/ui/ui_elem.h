@@ -9,11 +9,17 @@
 #include <GL/glew.h>
 
 #include "../FastDelegate.h"
-#include "../maths/vec2.h"
+#include "../maths/vec.h"
 
-extern vec2i windowResolution; //app.cpp
+template <class T>
+extern std::string demangledTypeName(const T* thing);
+
+extern ivec2 windowResolution; //app.cpp
 
 class UIElem{
+public:
+	static int elemsAlive;
+
 public:
 	#define UI_ELEM_CORNER_MARGIN 15
 
@@ -27,43 +33,43 @@ public:
 	#define UI_ACTIVE             (1 << 4)
 	#define UI_AUTO_RESIZE        (1 << 5)
 
-	UIElem() {
+	UIElem() : pos(0, 0), size(0, 0) {
 		parent = nullptr;
-		r = g = b = a = 255;
+		col = 0xFFFFFFFF;
 		flags = UI_ACTIVE;
+
+		elemsAlive++;
+
+		//debug, trying to get rid of a valgrind unitialized memory report
+		memset((uint8_t*)&onMouseDownCallback, 0, ((uint8_t*)&onMouseWheelCallback - (uint8_t*)&onMouseDownCallback) + sizeof(onMouseWheelCallback));
 	}
 
-	/*UIElem(vec2i pos) {
-		this->pos = pos;
-		parent = nullptr;
-		r = g = b = a = 255;
-		active = true;
-		flags = UI_ACTIVE;
-	}*/
-
 	virtual ~UIElem() {
-		if (parent){
-			parent->notifyChildDeleted(this);
-			parent = nullptr;
-		} 
-		for (auto child : children){
-			child->setParent(nullptr);
-			delete child;
+		//must duplicate the children array, since their 
+		for (auto it = children.begin(); it != children.end();){
+			UIElem* child = *it++; //the child will cause notifiChildDeleted on us, which will make us remove its reference from this very array, so increment before deleting
+			delete child; 
 		}
 
-		//do this after the child deletion loop so that the pointers keep going up the parent links
 		if (this == hover){
 			hover = getParent();
 		}
 		if (this == focus){
 			focus = getParent();
 		}
+
+		if (parent){
+			parent->notifyChildDeleted(this);
+			parent = nullptr;
+		}
+
+		elemsAlive--;
 	}
 
-	//try not to use this
-	void setParent(UIElem* elem){
-		parent = elem;
-	}
+	//this shouldn't be public
+	//void setParent(UIElem* elem){
+	//	parent = elem;
+	//}
 
 	UIElem* getParent(){
 		return parent;
@@ -78,69 +84,63 @@ public:
 	}
 
 	void clearFlag(uint32_t flag){
-		flags = flags & ~flag;
+		flags &= ~flag;
 	}
 
 	void clearAllFlags(){
 		flags = 0;
 	}
 
-	virtual void setPosition(vec2i p){
+	virtual void setPosition(ivec2 p){
 		for (auto child : children){
 			child->setPosition(child->pos - pos + p);
 		}
 		pos = p;
 	}
 
-	virtual vec2i getPosition(){
+	virtual ivec2 getPosition(){
 		return pos;
 	}
 
-	virtual void setSize(vec2i s){
+	virtual void setSize(ivec2 s){
 		size = s;
 	}
-    virtual vec2i getSize() { 
+    virtual ivec2 getSize() { 
     	return size; 
     }
 
     //0xRRGGBBAA
     void setColor(uint32_t hex){
-    	r = (hex >> 24) & 0xFF;
-    	g = (hex >> 16) & 0xFF;
-    	b = (hex >>  8) & 0xFF;
-    	a = (hex >>  0) & 0xFF;
+    	col = hex;
     }
 
     void setColorBytes(uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255){
-    	this->r = r;
-		this->g = g;
-		this->b = b;
-		this->a = a;
+    	col = (r << 24) | (g << 16) | (b << 8) | (a << 0);
     }
 
 	virtual void update(){
 		for (auto child : children){
 			if (child->getFlags() & UI_ACTIVE){
 				child->update();
-				vec2i cs = child->getSize();
+				ivec2 cs = child->getSize();
 
 				uint8_t cf = child->getFlags();
 				if (cf & UI_STICK_MASK){
 					//stick to corner, with a small margin
 					if (cf & UI_STICK_TOP_LEFT){
-						child->setPosition(vec2i(UI_ELEM_CORNER_MARGIN, UI_ELEM_CORNER_MARGIN));
+						child->setPosition(ivec2(UI_ELEM_CORNER_MARGIN));
 					}
 
 					else if(cf & UI_STICK_TOP_RIGHT){
-						child->setPosition(vec2i(windowResolution.x - cs.x - UI_ELEM_CORNER_MARGIN, UI_ELEM_CORNER_MARGIN));
+						child->setPosition(ivec2(windowResolution.x - cs.x - UI_ELEM_CORNER_MARGIN, UI_ELEM_CORNER_MARGIN));
 					}
 
 					else if(cf & UI_STICK_BOTTOM_RIGHT){
-						child->setPosition(windowResolution - cs - vec2i(UI_ELEM_CORNER_MARGIN));
+						child->setPosition(windowResolution - cs - ivec2(UI_ELEM_CORNER_MARGIN));
 					}
 
 					else{ //UI_STICK_BOTTOM_LEFT
-						child->setPosition(vec2i(UI_ELEM_CORNER_MARGIN, windowResolution.y - cs.y - UI_ELEM_CORNER_MARGIN));
+						child->setPosition(ivec2(UI_ELEM_CORNER_MARGIN, windowResolution.y - cs.y - UI_ELEM_CORNER_MARGIN));
 					}
 				}
 			}
@@ -156,7 +156,7 @@ public:
 	}
 
 	//searches for a child element that collides with the mouse pointer, but does no action
-	virtual UIElem* collides(vec2i at) const{
+	virtual UIElem* collides(ivec2 at) const{
 		for (auto child : children){
 			if (child->getFlags() & UI_ACTIVE){
 				UIElem* fromChild = child->collides(at);
@@ -167,26 +167,26 @@ public:
 		return nullptr; //UIElem has no content in itself
 	}
 
-	void onMouseDown(vec2i at, int button) {
+	void onMouseDown(ivec2 at, int button) {
 		privateOnMouseDown(at, button);
 		if (onMouseDownCallback){
 			onMouseDownCallback(this, at, button);
 		}
 	}
-	void onMouseUp(vec2i at, int button) {
+	void onMouseUp(ivec2 at, int button) {
 		privateOnMouseUp(at, button);
 		if (onMouseUpCallback){
 			onMouseUpCallback(this, at, button);
 		}
 	}
 
-	void onMouseMove(vec2i at) {
+	void onMouseMove(ivec2 at) {
 		privateOnMouseHover(at);
 		if (onMouseMoveCallback){
 			onMouseMoveCallback(this, at);
 		}
 	}
-	void onMouseDrag(vec2i to, vec2i base, int button) {
+	void onMouseDrag(ivec2 to, ivec2 base, int button) {
 		privateOnMouseDrag(to, base, button);
 		if (onMouseDragCallback){
 			onMouseDragCallback(this, to, base, button);
@@ -206,7 +206,7 @@ public:
 		}
 	}
 
-	void onWheel(vec2i at, int delta) {
+	void onWheel(ivec2 at, int delta) {
 		if (!privateOnWheel(at, delta)){
 			//pass the message along to the parent is one exists
 			if (parent){
@@ -221,9 +221,11 @@ public:
 	}
 
 	virtual void addChild(UIElem* child){
+		assert(child->getParent() == nullptr); //no double custody
+
 		child->setParent(this);
 		children.emplace_back(child);
-		child->setPosition(pos + child->getPosition()); //place inside $this
+		child->setPosition(pos + child->getPosition()); //maybe remove this
 	}
 
 	//adds $child above $before if $before exists,
@@ -248,29 +250,48 @@ public:
 		return false;
 	}
 
+	void removeChild(UIElem* thing){
+		auto childIt = children.end();
+		for (auto it = children.begin(); it != children.end(); it++){
+			if (*it == thing){
+				childIt = it;
+				break;
+			}
+		}
+
+		if (childIt != children.end()){
+			assert((*childIt)->getParent() == this);
+			(*childIt)->setParent(nullptr);
+			children.erase(childIt);
+		}
+		else{
+			printf("warning: UIElem %lx asked to delete non-child element %lx\n", (size_t)this, (size_t)thing);
+		}
+	}
+
 	const std::list<UIElem*>& getChildren() const{
 		return children;
 	}
 
 
 	template <class X>
-	inline void bindMouseDown(X* instance, void(X::*function)(UIElem* context, vec2i at, int button)) {
+	inline void bindMouseDown(X* instance, void(X::*function)(UIElem* context, ivec2 at, int button)) {
 		onMouseDownCallback.bind(instance, function);
 	}
 
 	template <class X>
-	inline void bindMouseUp(X* instance, void(X::*function)(UIElem* context, vec2i at, int button)) {
+	inline void bindMouseUp(X* instance, void(X::*function)(UIElem* context, ivec2 at, int button)) {
 		onMouseUpCallback.bind(instance, function);
 	}
 
 
 	template <class X>
-	inline void bindMouseMove(X* instance, void(X::*function)(UIElem* context, vec2i to)) {
+	inline void bindMouseMove(X* instance, void(X::*function)(UIElem* context, ivec2 to)) {
 		onMouseMoveCallback.bind(instance, function);
 	}
 
 	template <class X>
-	inline void bindMouseDrag(X* instance, void(X::*function)(UIElem* context, vec2i from, vec2i to, int button)) {
+	inline void bindMouseDrag(X* instance, void(X::*function)(UIElem* context, ivec2 from, ivec2 to, int button)) {
 		onMouseDragCallback.bind(instance, function);
 	}
 
@@ -287,7 +308,7 @@ public:
 
 
 	template <class X>
-	inline void bindMouseWheel(X* instance, void(X::*function)(UIElem* context, vec2i at, int delta)) {
+	inline void bindMouseWheel(X* instance, void(X::*function)(UIElem* context, ivec2 at, int delta)) {
 		onMouseWheelCallback.bind(instance, function);
 	}
 
@@ -298,11 +319,11 @@ public:
 
 protected:
 	//derive these for generic class behaviour, like counter value changing
-	virtual void privateOnMouseDown(vec2i at, int button) { }
-	virtual void privateOnMouseUp(vec2i at, int button) { }
+	virtual void privateOnMouseDown(ivec2 at, int button) { }
+	virtual void privateOnMouseUp(ivec2 at, int button) { }
 
-	virtual void privateOnMouseHover(vec2i at) { }
-	virtual void privateOnMouseDrag(vec2i to, vec2i base, int button) { }
+	virtual void privateOnMouseHover(ivec2 at) { }
+	virtual void privateOnMouseDrag(ivec2 to, ivec2 base, int button) { }
 
 	//called only if focus is on the element and a key is pressed
 	virtual void privateOnControlKey(int key){ } //arrows, ctrl, shift, alt, Fs, pageup, pagedown, insert, home, end (but not mod4, strangely)
@@ -310,8 +331,12 @@ protected:
 
 	//does the acutal onWheel action, 
 	//returns whether to stop the event from propagating down to the next parent
-	virtual bool privateOnWheel(vec2i at, int delta){
+	virtual bool privateOnWheel(ivec2 at, int delta){
 		return false;
+	}
+
+	void setParent(UIElem* elem){
+		parent = elem;
 	}
 
 	//called by the destructor against its parent
@@ -333,17 +358,12 @@ protected:
 		}
 	}
 
-	//color
-	union{
-		struct{
-			uint8_t r, g, b, a;
-		};
-		uint8_t col[4];
-	};
-
 	//layout
-	vec2i pos;
-	vec2i size;
+	ivec2 pos;
+	ivec2 size;
+
+	//color
+	uint32_t col;
 
 	//logic
 	uint32_t flags;
@@ -351,16 +371,16 @@ protected:
 	UIElem* parent;
 
 	//callbacks
-	fastdelegate::FastDelegate3<UIElem*, vec2i, int> onMouseDownCallback;
-	fastdelegate::FastDelegate3<UIElem*, vec2i, int> onMouseUpCallback;
+	fastdelegate::FastDelegate3<UIElem*, ivec2, int> onMouseDownCallback;
+	fastdelegate::FastDelegate3<UIElem*, ivec2, int> onMouseUpCallback;
 
-	fastdelegate::FastDelegate2<UIElem*, vec2i> onMouseMoveCallback;
-	fastdelegate::FastDelegate4<UIElem*, vec2i, vec2i, int> onMouseDragCallback;
+	fastdelegate::FastDelegate2<UIElem*, ivec2> onMouseMoveCallback;
+	fastdelegate::FastDelegate4<UIElem*, ivec2, ivec2, int> onMouseDragCallback;
 
 	fastdelegate::FastDelegate2<UIElem*, int> onControlKeyCallback;
 	fastdelegate::FastDelegate3<UIElem*, int, int> onTextKeyCallback;
 
-	fastdelegate::FastDelegate3<UIElem*, vec2i, int> onMouseWheelCallback;
+	fastdelegate::FastDelegate3<UIElem*, ivec2, int> onMouseWheelCallback;
 };
 
 #endif

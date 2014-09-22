@@ -89,10 +89,11 @@ private:
 	static GLenum channelsToFormat(int channels){
 		assert(channels >= 1 and channels <= 4);
 		const GLenum channelsToFormatTable[] = {
-			[1] = GL_RED,
-			[2] = GL_RG,
-			[3] = GL_RGB,
-			[4] = GL_RGBA
+			0, 
+			GL_RED, //1
+			GL_RG,  //2
+			GL_RGB, //3
+			GL_RGBA //4
 		};
 		return channelsToFormatTable[channels];
 	}

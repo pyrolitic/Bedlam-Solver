@@ -14,7 +14,7 @@ extern Shader* textShader; //app.cpp
 class TextInput : public Frame{
 public:
 	TextInput(int width, const char* defaultText = "") : Frame(){
-		Frame::setSize(vec2i(width + 2 * FRAME_ROUNDED_RADIUS, 2 * FRAME_ROUNDED_RADIUS + TextRender::getReasonableHeight()));
+		Frame::setSize(ivec2(width + 2 * FRAME_ROUNDED_RADIUS, 2 * FRAME_ROUNDED_RADIUS + TextRender::getReasonableHeight()));
 		caretIndex = -1; //end
 		caretPos = pos.x + FRAME_ROUNDED_RADIUS;
 
@@ -33,7 +33,7 @@ public:
 
 	void setDefaultText(const char* text){
 		defaultText.assign(text);
-		vec2i s; //throw-away
+		ivec2 s; //throw-away
 		TextRender::prepare(defaultTextCache, s, defaultText.c_str());
 	}
 
@@ -47,48 +47,40 @@ public:
 
 	void setText(const char* newText){
 		text.assign(newText);
-		int textWidth, textHeight;
-		vec2i textSize;
+		ivec2 textSize;
 		TextRender::prepare(textCache, textSize, text.c_str());
-		Frame::setSize(vec2i(textSize.x + 2 * FRAME_ROUNDED_RADIUS, 2 * FRAME_ROUNDED_RADIUS + std::max(BUTTON_MIN_TEXT_HEIGHT, textSize.y)));
+		Frame::setSize(ivec2(textSize.x + 2 * FRAME_ROUNDED_RADIUS, 2 * FRAME_ROUNDED_RADIUS + std::max(BUTTON_MIN_TEXT_HEIGHT, textSize.y)));
 	}
 
 	void draw(int depth){
 		Frame::draw(depth); //draw frame underneath
 
-		vec2i renderAt = pos + vec2i(FRAME_ROUNDED_RADIUS); //overlay text, centered
+		ivec2 renderAt = pos + ivec2(FRAME_ROUNDED_RADIUS); //overlay text, centered
 		std::vector<uiVert>* cache;
-		uint8_t textCol[4];
+		uint32_t textCol;
 
 		if (text.size() == 0 and UIElem::focus != this){
 			//render default text
-			textCol[0] = 0x33;
-			textCol[1] = 0x4C;
-			textCol[2] = 0x4C;
-			textCol[3] = 0xFF;
+			textCol = 0x334C4CFF;
 			cache = &defaultTextCache;
 		}
 		else{
 			//render entered text
-			textCol[0] = 0x19;
-			textCol[1] = 0x19;
-			textCol[2] = 0x19;
-			textCol[3] = 0xFF;
+			textCol = 0x191919FF;
 			cache = &textCache;
 		}
 
-		uiRender->startEntity(UI_ENTITY_TEXT, renderAt, depth + 1, textCol, TextRender::getFontTexture());
+		uiRender->startEntity(UI_ENTITY_TEXT, renderAt, depth + 2, textCol, TextRender::getFontTexture());
 		uiRender->addVerts(cache->size(), cache->data());
 		uiRender->endEntity();
 
 		if (UIElem::focus == this){
 			//also render caret
-			uint8_t caretCol[4];
-			caretCol[0] = caretCol[1] = caretCol[2] = 30;
-			caretCol[3] = (glutGet(GLUT_ELAPSED_TIME) % 1100 < 400) * 255;
+			uint32_t caretCol = 0x19191900; //invisible
+			caretCol |= (glutGet(GLUT_ELAPSED_TIME) % 1100 < 400) * 255; //occasionally visible
 
-			vec2i offset(pos.x + FRAME_ROUNDED_RADIUS + caretPos, pos.y + FRAME_ROUNDED_RADIUS);
-			uiRender->startEntity(UI_ENTITY_TEXT, offset, depth + 1, textCol, TextRender::getFontTexture());
+			ivec2 offset(pos.x + FRAME_ROUNDED_RADIUS + caretPos, pos.y + FRAME_ROUNDED_RADIUS);
+			uiRender->startEntity(UI_ENTITY_TEXT, offset, depth + 2, caretCol, TextRender::getFontTexture());
 			uiRender->addVerts(caretVerts.size(), caretVerts.data());
 			uiRender->endEntity();
 		}
@@ -166,6 +158,9 @@ protected:
 			}
 		}
 
+		ivec2 s; //throw-away
+		TextRender::prepare(textCache, s, text.c_str());
+
 		//place the caret indicator in the right place
 		if (caretIndex >= 0){
 			TextRender::metricsToChar(text.c_str(), text.c_str() + caretIndex, &caretPos, nullptr);
@@ -175,10 +170,10 @@ protected:
 		}
 	}
 
-	void privateOnMouseDown(vec2i at, int button){
+	void privateOnMouseDown(ivec2 at, int button){
 		if (button == GLUT_LEFT_BUTTON){
 			if (UIElem::focus == this){
-				if (at >= pos + vec2i(FRAME_ROUNDED_RADIUS) and at < pos + size - vec2i(FRAME_ROUNDED_RADIUS)){
+				if (at >= pos + ivec2(FRAME_ROUNDED_RADIUS) and at < pos + size - ivec2(FRAME_ROUNDED_RADIUS)){
 					//jump to symbol under mouse pointer
 					int offset = at.x - (pos.x + FRAME_ROUNDED_RADIUS);
 					int begin, end;
@@ -212,7 +207,7 @@ protected:
 
 public:
 	static void init(){
-		vec2i s;
+		ivec2 s;
 		TextRender::prepare(caretVerts, s, "|");
 	}
 

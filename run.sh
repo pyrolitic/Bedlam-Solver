@@ -1,3 +1,5 @@
-GLEW_INSTALL="$HOME/C/glew_college"
-export LD_LIBRARY_PATH="$GLEW_INSTALL/lib"
+if [ ! -z "$GLEW_LOCATION" ]; then
+	export LD_LIBRARY_PATH="$GLEW_LOCATION/lib:$LD_LIBRARY_PATH:";
+fi
+
 ./solver

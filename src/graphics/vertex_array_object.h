@@ -5,22 +5,21 @@
 
 #include <GL/glew.h>
 
-#include "../maths/vec2.h"
+#include "../maths/vec.h"
 
-//===============================================================================
+//VAO backported to opengl 2
+//surprisingly easy. the only downside is that attribute metadata must be set(setAttribPointers) on every bind
+
 template<class T>
 class VertexArrayObject {
 	public:
 		VertexArrayObject() {
 			glGenBuffers(1, &vertexBuffer);
-			glGenVertexArrays(1, &vertexArray);
 			verticesAssigned = 0;
-			specified = false;
 		}
 
 		~VertexArrayObject() {
 			glDeleteBuffers(1, &vertexBuffer);
-			glDeleteVertexArrays(1, &vertexArray);
 		}
 
 		VertexArrayObject(VertexArrayObject& rhs); //unimplemented, error
@@ -31,18 +30,12 @@ class VertexArrayObject {
 		}
 
 		void bind() {
-			glBindVertexArray(vertexArray);
 			glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-
-			if (!specified){
-				setAttribPointers();
-				specified = true;
-			}
+			setAttribPointers();
 		}
 
 		static void bindDefault() {
 			glBindBuffer(GL_ARRAY_BUFFER, 0);
-			glBindVertexArray(0);
 		}
 
 		/*must be defined for every T as follows
@@ -55,7 +48,7 @@ class VertexArrayObject {
 		 optionally normalized to the [-1, 1] or [0, 1] range (for signed and unsigned types, respectively)
 
 		or 2b) glVertexAttribIPointer(location, numComponents, sourceType, stride, offsetof);
-		 for integer types, causing them to be accessed as integers (int, vec2i, and so on)
+		 for integer types, causing them to be accessed as integers (int, ivec2, and so on)
 
 		  numComponents states how many components there in the vector (1 to 4), and will be accessed as .x through .w
 
@@ -72,10 +65,10 @@ class VertexArrayObject {
 		*/
 		void setAttribPointers(); 
 
-		void assign(int elements, const T* data) {
-			bind();
+		void assign(int elements, const T* data, GLenum use = GL_STATIC_DRAW) {
+			glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
 
-			glBufferData(GL_ARRAY_BUFFER, sizeof(T) * elements, data, GL_STATIC_DRAW);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(T) * elements, data, use);
 			verticesAssigned = elements;
 
 			bindDefault();
@@ -83,9 +76,7 @@ class VertexArrayObject {
 
 	private:
 		GLuint vertexBuffer;
-		GLuint vertexArray;
 		int verticesAssigned;
-		bool specified;
 };
 
 #endif

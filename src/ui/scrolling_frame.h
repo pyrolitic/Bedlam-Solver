@@ -13,7 +13,9 @@ public:
 	#define SCROLLING_FRAME_ELMENT_SEPARATION FRAME_ROUNDED_RADIUS
 
 	ScrollingFrame(int height) : Frame(){
-		setSize(vec2i(0, height));
+		setSize(ivec2(0, height));
+		scrollingPosition = 0.0f;
+		contentHeight = 0;
 	}
 
 	virtual ~ScrollingFrame() {}
@@ -32,16 +34,16 @@ public:
 
 		for (auto it = UIElem::children.begin(); it != UIElem::children.end(); it++){
 			UIElem* elem = *it;
-			elem->setPosition(pos + vec2i(FRAME_ROUNDED_RADIUS, FRAME_ROUNDED_RADIUS + (int)scrollingPosition + contentHeight));
+			elem->setPosition(pos + ivec2(FRAME_ROUNDED_RADIUS, FRAME_ROUNDED_RADIUS + (int)scrollingPosition + contentHeight));
 
-			vec2i dim = elem->getSize();
+			ivec2 dim = elem->getSize();
 
 			if (dim.x > maxWidth) maxWidth = dim.x;
 			contentHeight += dim.y;
 			if (std::next(it) != UIElem::children.end()) contentHeight += SCROLLING_FRAME_ELMENT_SEPARATION;
 		}
 
-		setSize(vec2i(maxWidth + 2 * FRAME_ROUNDED_RADIUS, size.y)); //don't make it longer than before
+		setSize(ivec2(maxWidth + 2 * FRAME_ROUNDED_RADIUS, size.y)); //don't make it longer than before
 	}
 
 	virtual void draw(int depth){
@@ -49,12 +51,12 @@ public:
 		//UIElem::draw();
 	}
 
-	virtual UIElem* collides(vec2i at) const{
+	virtual UIElem* collides(ivec2 at) const{
 		return Frame::collides(at);
 	}
 
 protected:
-	bool privateOnWheel(vec2i at, int delta){
+	bool privateOnWheel(ivec2 at, int delta){
 		scrollingPosition += delta * 10;
 		if (scrollingPosition > 0.0f) scrollingPosition = 0.0f;
 		//if (scrollingPosition < contentHeight - size.y) scrollingPosition = contentHeight - size.y;

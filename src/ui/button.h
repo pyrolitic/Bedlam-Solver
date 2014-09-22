@@ -50,7 +50,7 @@ public:
 	}
 
 protected:
-	void privateOnMouseUp(vec2i at, int button){
+	void privateOnMouseUp(ivec2 at, int button){
 		if (button == GLUT_LEFT_BUTTON){
 			if (toggle){
 				value = !value;
