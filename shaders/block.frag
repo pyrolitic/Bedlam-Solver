@@ -16,12 +16,8 @@ varying vec3 fragmentNormal; //world space
 varying vec4 vertColor;
 
 void main(){
-	//gl_FragColor = vec4(fragmentNormal * 0.5 + vec3(0.5), 1.0);
-
 	vec4 texel = texture2D(texture, texCoord);
-
 	vec3 normal = normalize(fragmentNormal);
-
 	vec3 light = vec3(0.0);
 
 	/*vec3 pointLightDiff = pointLightPosition - fragmentPosition;

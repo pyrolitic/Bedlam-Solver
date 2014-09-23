@@ -264,7 +264,7 @@ void SolutionScreen::update(){
 
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
-	glDepthFunc(GL_LESS); //normal
+	glDepthFunc(GL_GREATER); //normal
 	glActiveTexture(GL_TEXTURE0);
 
 	blockShader->use();
@@ -280,7 +280,7 @@ void SolutionScreen::update(){
 	blocksVAO->bind();
 	for (int instId = 0; instId < instances; instId++){
 		if (inReps[instId].draw){
-			mat4 model = inReps[instId].transformation;
+			mat4& model = inReps[instId].transformation;
 			mat4 mvp = projection * view * model;
 			mat3 texMatrix = mat3::identity();
 			bool inverseSuccess;
@@ -329,13 +329,18 @@ void SolutionScreen::update(){
 	}
 }
 
-ivec3 SolutionScreen::slideDirection(int instId){
-	ivec3 place = source[instId].position;
-	ivec3 size = addedMaterial.getSize();
+ivec3 SolutionScreen::slideDirection(int instId, int& distance){
+	const ivec3& place = source[instId].position;
+	const ivec3& size = addedMaterial.getSize();
+
 	int dirMask = 0;
 	int maskedDirs = 0;
-	int dirDistance[6];
-	memset(dirDistance, 0, 6 * sizeof(int));
+
+	struct sideRec{
+		int side;
+		int dist;
+	} sides[6];
+	memset(sides, 0, 6 * sizeof(sides));
 
 	for (const auto& block : inReps[instId].material.getBlocks()){
 		ivec3 start = place + block.first;
@@ -343,28 +348,38 @@ ivec3 SolutionScreen::slideDirection(int instId){
 		for (int axis = 0; axis < 3; axis++){
 			for (int right = 0; right < 2; right++){
 				int side = axis * 2 + right;
+				sides[side] = side;
+
 				vec3 pos = start;
-				int dist = 0;
 				while (pos <= size and pos > ivec3(0)){
 					if (addedMaterial.query(pos)){
 						dirMask |= (1 << side);
 						maskedDirs++;
-						dist = -1;
+						sides[side].dist = -1;
 						break;
 					}
 
 					pos.data[axis] += -1 + 2 * right;
-					dist++;
-				}
-
-				if (dist != -1){
-					if (dist > dirDistance[side]){
-						dirDistance[side] = dist;
-					}
+					sides[side].dist++;
 				}
 			}
 		}
 	}
+
+	std::sort(sides, sides + 6, [](const sideRec& a, const sideRec& b) -> bool{
+		return a.dist < b.dist;
+	});
+
+	//find how many instances there are of the best 
+	int first = 0;
+	for (int sri = 0; sri < 6; sri++){
+		if (sides[sri].dist > -1){
+			first = sri;
+			break;
+		}
+	}
+
+	int one = first rand() % (6 - first);
 
 	if (maskedDirs == 6){
 		printf("show solution: no slide direction for piece #%d\n", instId);
@@ -372,7 +387,7 @@ ivec3 SolutionScreen::slideDirection(int instId){
 	}
 
 	else{
-		int one = rand() % (6 - maskedDirs);
+		int one = 
 		int at = 0;
 
 		for (int axis = 0; axis < 3; axis++){

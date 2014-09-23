@@ -82,12 +82,13 @@ void init(){
 
 	//glEnable(GL_CULL_FACE);
 	glFrontFace(GL_CW);
+	//glFrontFace(GL_CCW);
 
 	//get some aa going
-	glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+	/*glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
 	glHint(GL_POLYGON_SMOOTH_HINT, GL_NICEST);
 	glEnable(GL_LINE_SMOOTH);
-	glEnable(GL_POLYGON_SMOOTH);
+	glEnable(GL_POLYGON_SMOOTH);*/
 	//glEnable(GL_MULTISAMPLE_ARB);
 
 	glEnable(GL_DEPTH_TEST);
