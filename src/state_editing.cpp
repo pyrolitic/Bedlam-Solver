@@ -314,8 +314,8 @@ void EditingScreen::update(){
 	glActiveTexture(GL_TEXTURE0);
 
 	blockShader->use();
+	glUniform3f(blockShader->getUniformLocation("directionalLightDirection"), 0.7f, 0.7f, 0.7f);
 	glUniform1i(blockShader->getUniformLocation("texture"), 0);
-
 
 	//draw current piece, pushing the solid planes back a little so that the lines will show, even at acute angles
 	mat4 model = mat4::identity();

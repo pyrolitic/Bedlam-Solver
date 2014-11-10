@@ -20,13 +20,12 @@ void main(){
 	vec3 normal = normalize(fragmentNormal);
 	vec3 light = vec3(0.0);
 
-	/*vec3 pointLightDiff = pointLightPosition - fragmentPosition;
-	float pointLightStrength = max(1.0 - length(pointLightDiff) * 0.5, 0.0);
-	float pointLight = max(dot(normalize(pointLightDiff), normal), 0.0) * pointLightStrength;*/
+	//vec3 pointLightDiff = pointLightPosition - fragmentPosition;
+	//float pointLight = max(dot(normalize(pointLightDiff), normal), 0.0) * pointLightStrength;
 
 	float dirLight = max(dot(directionalLightDirection, normal), 0.0);
 	light += dirLight * vec3(0.5, 0.1, 0.9);
 
 	light = min(light, vec3(1.0));
-	gl_FragColor = vertColor * vec4(light, 1.0);
+	gl_FragColor = vertColor * vec4(light * 0.5 + vec3(0.5), 1.0);
 }

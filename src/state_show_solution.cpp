@@ -239,7 +239,8 @@ void SolutionScreen::update(){
 		vec3 moving = animStart.piecePosition * (1.0f - along) + animEnd.piecePosition * along;
 		quat rot = quat::lerpRot(animStart.pieceRotation, animEnd.pieceRotation, along);
 
-		inReps[currentInstance].transformation = mat4::translation(moving + currentInstanceTranslation[1]) * mat4::quaternionRotation(rot) * mat4::translation(currentInstanceTranslation[0]);
+		inReps[currentInstance].transformation = mat4::translation(moving + currentInstanceTranslation[1]) * 
+			mat4::quaternionRotation(rot) * mat4::translation(currentInstanceTranslation[0]);
 
 		char buf[256];
 		snprintf(buf, 256, "camera position: (%f %f %f)", cameraPosition.x, cameraPosition.y, cameraPosition.z);
@@ -330,82 +331,80 @@ void SolutionScreen::update(){
 }
 
 ivec3 SolutionScreen::slideDirection(int instId, int& distance){
-	const ivec3& place = source[instId].position;
+	const ivec3& place = source[instId].position; //distination
 	const ivec3& size = addedMaterial.getSize();
 
-	int dirMask = 0;
-	int maskedDirs = 0;
-
+	//ray-cast in every direction to the edge of the cube
 	struct sideRec{
-		int side;
-		int dist;
+		int side; //(axis << 1) + right
+		int dist; //to edge of the cube, -1 if something was hit
 	} sides[6];
-	memset(sides, 0, 6 * sizeof(sides));
+	
+	for (int i = 0; i < 6; i++){
+		sides[i].side = i;
+		sides[i].dist = 0;
+	}
 
+	//go through every block in the final position
 	for (const auto& block : inReps[instId].material.getBlocks()){
-		ivec3 start = place + block.first;
+		ivec3 start = place + block.first; //final position of that block
 
+		//check if there's a clear path to the edge of the cube on each axis,
 		for (int axis = 0; axis < 3; axis++){
+			//both directions
 			for (int right = 0; right < 2; right++){
-				int side = axis * 2 + right;
-				sides[side] = side;
+				int side = (axis << 1) + right;
+				int dist = 0;
 
+				//walk along that direction to the edge of the cube
 				vec3 pos = start;
 				while (pos <= size and pos > ivec3(0)){
 					if (addedMaterial.query(pos)){
-						dirMask |= (1 << side);
-						maskedDirs++;
+						//hit something
 						sides[side].dist = -1;
 						break;
 					}
 
-					pos.data[axis] += -1 + 2 * right;
-					sides[side].dist++;
+					else{
+						//clear
+						pos.data[axis] += -1 + 2 * right;
+						dist++;
+					}
+				}
+
+				if (sides[side].dist != -1){
+					sides[side].dist = std::max(sides[side].dist, dist);
 				}
 			}
 		}
 	}
 
+	//sort by distance, ascending order
 	std::sort(sides, sides + 6, [](const sideRec& a, const sideRec& b) -> bool{
 		return a.dist < b.dist;
 	});
 
-	//find how many instances there are of the best 
-	int first = 0;
-	for (int sri = 0; sri < 6; sri++){
-		if (sides[sri].dist > -1){
-			first = sri;
-			break;
-		}
-	}
+	ivec3 ret(0, 0, 0);
 
-	int one = first rand() % (6 - first);
+	int maskedDirs = 0;
+	for (;sides[maskedDirs].dist == -1 and maskedDirs < 6; maskedDirs++);
 
 	if (maskedDirs == 6){
 		printf("show solution: no slide direction for piece #%d\n", instId);
-		return ivec3(1, 0, 0); //no solution, will have to slide through
+		distance = 0;
+		ret = ivec3(1, 0, 0);
+	}
+	else {
+		//randomly pick one of the non-masked dirs
+		int one = maskedDirs;
+		if (maskedDirs < 5) one += rand() % (6 - maskedDirs);
+		assert(one < 6);
+
+		ret.data[sides[one].side >> 1] += -1 + (sides[one].side & 1) * 2;
+		distance = sides[one].dist;
 	}
 
-	else{
-		int one = 
-		int at = 0;
-
-		for (int axis = 0; axis < 3; axis++){
-			for (int right = 0; right < 2; right++){
-				if (dirMask & (1 << (axis * 2 + right))){
-					if (at == one){
-						ivec3 d(0);
-						d.data[axis] = -1 + 2 * right;
-						return d;
-					}
-					at++;
-				}
-			}
-		}
-	}
-
-	assert(false and "shouldn't get to here");
-	return ivec3(0);
+	return ret;
 }
 
 vec3 SolutionScreen::bestViewDirection(int instId){

@@ -2,10 +2,10 @@
 
 #define TEST_BUILD //removes external library ties
 
-#include "../ui_elem.h"
-#include "../frame.h"
-#include "../button.h"
-#include "../scrolling_frame.h"
+#include "../ui/ui_elem.h"
+#include "../ui/frame.h"
+#include "../ui/button.h"
+#include "../ui/scrolling_frame.h"
 
 //run with valgrind most testing
 

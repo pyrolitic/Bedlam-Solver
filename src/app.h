@@ -423,7 +423,7 @@ public:
 	bool animation;
 
 	vec3 bestViewDirection(int instId);
-	ivec3 slideDirection(int instId);
+	ivec3 slideDirection(int instId, int& distance);
 
 	//constant? maybe spawn piece in different places if more appropriate
 	vec3 pieceSpawnPosition;
