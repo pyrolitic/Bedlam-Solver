@@ -11,13 +11,13 @@ fi
 
 BINARY_NAME="solver";
 
-INCLUDEDIRS=("-I\"$GLEW_LOCATION/include\"");
-LIBDIRS=("-L\"$GLEW_LOCATION/lib\"" );
+INCLUDEDIRS=("-I$GLEW_LOCATION/include");
+LIBDIRS=("-L$GLEW_LOCATION/lib" );
 LIBS=("-pthread" "-lGLEW" "-lGLU" "-lglut" "-lGL" "-lm");
-CXXFLAGS=("-std=c++11"); #-E only
 
+CXXFLAGS=("-std=c++11" "${INCLUDEDIRS[@]}"); #-E only
 COMPILECXXFLAGS=("${CXXFLAGS[@]}" "-Wuninitialized" "-Wfatal-errors" "-Wformat-security" "-Wformat=2"); #-c only
-LINKCXXFLAGX=("${COMPILECXXFLAGS[@]}" "-pthread" "-g3" "-O0"); #linking
+LINKCXXFLAGS=("${LIBDIRS[@]}" "${COMPILECXXFLAGS[@]}" "${LIBS[@]}" "-g3" "-O0"); #linking
 
 #-- script after this --
 
@@ -27,6 +27,19 @@ IFS=$'\n'; #newline as separator in for loops
 dir="$(cd "$(dirname "$0")" && pwd)";
 echo "working in $dir";
 cd "$dir";
+
+tmp_file="$dir/.build/__temp.cpp"; #temp file must have cpp suffix
+ln -s $(tempfile) "$tmp_file";
+
+cleanup() {
+	echo "cleanup";
+	if [ -f "$tmp_file" ]; then
+		rm $(readlink -e "$tmp_file"); #remove actual file
+		rm "$tmp_file"; #remove local symlink
+	fi
+}
+
+trap cleanup SIGINT SIGTERM;
 
 case "$1" in
 	"clean")
@@ -42,13 +55,12 @@ case "$1" in
 
 		mkdir -p "$dir/.build";
 		files=$(find $search_path -type f -regex $search_match | grep -v \.build | grep -v "test");
-		tmp_file="$dir/.build/__temp.cpp"; #temp file must have cpp suffix
-		ln -s $(tempfile) "$tmp_file";
 
 		relink=false;
 		obj_list=( );
 		for rel_path in $files; do
-			echo "looking at $rel_path";
+			rel_path=$(echo "$rel_path" | cut -c 3-); #remove ./
+			echo -n "$rel_path.. ";
 			file_dir=$(dirname $rel_path);
 			file_name=$(basename $rel_path);
 
@@ -56,12 +68,16 @@ case "$1" in
 			object_path=".build/$file_dir/${file_name}.o";
 			obj_list+=("$object_path");
 
-			mkdir -p ".build/$file_dir"; #doesn't hurt, needed to create a file in there
+			mkdir -p ".build/$file_dir";
 
 			expand_commnad=("$CXX" "${CXXFLAGS[@]}" -E "$rel_path");
 			"${expand_commnad[@]}" > "$tmp_file";
+			exit;
 
-			compile_command=("$CXX" -c "${COMPILECXXFLAGS[@]}" "${INCLUDEDIRS[@]}" "$tmp_file" -o "$object_path");
+			#compile_command=("$CXX" -c "${COMPILECXXFLAGS[@]}" "$tmp_file" -o "$object_path");
+			compile_command=("$CXX" -c "${COMPILECXXFLAGS[@]}" "$rel_path" -o "$object_path");
+			echo "${compile_command[@]}";
+			exit;
 
 			cur_hash=$(sha1sum "$tmp_file" | cut -d ' ' -f 1);
 
@@ -78,9 +94,9 @@ case "$1" in
 				echo "no old version exists";
 				rebuild=true;
 			fi
-			echo "";
 
 			if [ $rebuild == true ]; then
+				echo "rebuilding $rel_path";
 				relink=true;
 				"${compile_command[@]}";
 				if [ $? != "0" ]; then
@@ -89,23 +105,24 @@ case "$1" in
 				fi
 				echo "$cur_hash" > "$hash_path";
 			fi
+
+			#echo "";
 		done
 
 		if [[ ( $relink == true || ! -f "$BINARY_NAME" ) ]]; then
-			link_command=("$CXX" "${LINKCXXFLAGX[@]}" -o "$BINARY_NAME" "${obj_list[@]}" "${LIBS[@]}");
+			echo -n "linking.. ";
+			link_command=("$CXX" "${LINKCXXFLAGS[@]}" -o "$BINARY_NAME" "${obj_list[@]}");
 			"${link_command[@]}";
 			if [ $? != "0" ]; then
-				echo "link failed";
-				exit;
+				echo "failed";
 			else
-				echo "successfully relinked";
+				echo "successful";
 			fi
 		else
 			echo "apprently no need to relink. not sure if this is right, though";
 		fi
 
-		rm $(readlink -e "$tmp_file"); #remove actual file
-		rm "$tmp_file"; #remove local symlink
+		cleanup;
 		;;
 	*)
 		echo "invlid argument";
