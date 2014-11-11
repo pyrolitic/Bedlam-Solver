@@ -360,7 +360,7 @@ public:
 
 //private: //debug
 	struct pieceRepr {
-		//in relation to mesh storage VAO
+		//in relation to mesh storage VAO 
 		int firstVert;
 		int vertCount;
 

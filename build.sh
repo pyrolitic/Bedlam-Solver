@@ -1,4 +1,4 @@
-#custom definitions here
+#!/bin/bash
 if [ ! -z "$GLEW_LOCATION" ]; then
 	export LD_LIBRARY_PATH="$GLEW_LOCATION/lib:$LD_LIBRARY_PATH:";
 else
@@ -9,22 +9,24 @@ if [ -z "$CXX" ]; then
 	CXX=g++; #must support c++11
 fi
 
-OUT=solver
-LIBS="-lGLEW -lGLU -lglut -lGL -lm"
+BINARY_NAME="solver";
 
-INCLUDEDIRS="-I\"$GLEW_LOCATION/include\""
+INCLUDEDIRS=("-I\"$GLEW_LOCATION/include\"");
+LIBDIRS=("-L\"$GLEW_LOCATION/lib\"" );
+LIBS=("-pthread" "-lGLEW" "-lGLU" "-lglut" "-lGL" "-lm");
+CXXFLAGS=("-std=c++11"); #-E only
 
-CXXFLAGS="-std=c++11"
-COMPILECXXFLAGS="\"$CXXFLAGS\" -Wuninitialized -pthread -g3 -O0 -Wfatal-errors -Wformat-security -Wformat=2"
-LINKFLAGS="-L\"$GLEW_LOCATION/lib\""
+COMPILECXXFLAGS=("${CXXFLAGS[@]}" "-Wuninitialized" "-Wfatal-errors" "-Wformat-security" "-Wformat=2"); #-c only
+LINKCXXFLAGX=("${COMPILECXXFLAGS[@]}" "-pthread" "-g3" "-O0"); #linking
 
 #-- script after this --
+
 OLD_IFS="$IFS"; 
 IFS=$'\n'; #newline as separator in for loops
 
-dir=$(readlink -e $0 | xargs dirname);
+dir="$(cd "$(dirname "$0")" && pwd)";
 echo "working in $dir";
-pushd "$dir";
+cd "$dir";
 
 case "$1" in
 	"clean")
@@ -38,43 +40,76 @@ case "$1" in
 			search_path="./src";
 		fi
 
-		files=$(find $search_path -type f -regex $search_match);
-
-		tmp_file=$(tempfile);
 		mkdir -p "$dir/.build";
+		files=$(find $search_path -type f -regex $search_match | grep -v \.build | grep -v "test");
+		tmp_file="$dir/.build/__temp.cpp"; #temp file must have cpp suffix
+		ln -s $(tempfile) "$tmp_file";
+
+		relink=false;
+		obj_list=( );
 		for rel_path in $files; do
 			echo "looking at $rel_path";
-			file_name=$(basename $rel_path);
 			file_dir=$(dirname $rel_path);
+			file_name=$(basename $rel_path);
 
-			echo "in dir $file_dir";
-			mkdir -p "$dir/.build/$file_dir";
+			hash_path=".build/$file_dir/${file_name}.hash";
+			object_path=".build/$file_dir/${file_name}.o";
+			obj_list+=("$object_path");
 
-			$CXX $CXXFLAGS $INCLUDEDIRS -E "$rel_path" > "$tmp_file";
-			cur_hash=$(sha1sum $tmp_file | cut -d ' ' -f 1);
-			echo "hash of expanded: $cur_hash";
+			mkdir -p ".build/$file_dir"; #doesn't hurt, needed to create a file in there
 
-			if [ -f "$dir/.build/$rel_path" ]; then
-				old_hash=$(sha1sum "$dir/.build/$rel_path" | cut -d ' ' -f 1);
-				echo "file has extended version, with hash $old_hash";
+			expand_commnad=("$CXX" "${CXXFLAGS[@]}" -E "$rel_path");
+			"${expand_commnad[@]}" > "$tmp_file";
+
+			compile_command=("$CXX" -c "${COMPILECXXFLAGS[@]}" "${INCLUDEDIRS[@]}" "$tmp_file" -o "$object_path");
+
+			cur_hash=$(sha1sum "$tmp_file" | cut -d ' ' -f 1);
+
+			rebuild=false;
+			if [[ ( -f "$hash_path" && -f "$object_path" ) ]]; then
+				old_hash=$(cat "$hash_path");
 				if [ "$cur_hash" == "$old_hash" ]; then
-					echo "match";
+					echo "unchanged";
 				else
-					echo "different, rebuilding";
-					$CXX $COMPILECXXFLAGS $INCLUDEDIRS -E "$rel_path" > "$tmp_file";
-					cp "$tmp_file" "$dir/.build/$rel_path";
+					echo "changed";
+					rebuild=true;
 				fi
 			else
-				echo "no expanded version existed already";
-				cp "$tmp_file" "$dir/.build/$rel_path";
+				echo "no old version exists";
+				rebuild=true;
+			fi
+			echo "";
+
+			if [ $rebuild == true ]; then
+				relink=true;
+				"${compile_command[@]}";
+				if [ $? != "0" ]; then
+					echo "compile failed";
+					break;
+				fi
+				echo "$cur_hash" > "$hash_path";
 			fi
 		done
-		rm "$tmp_file";
+
+		if [[ ( $relink == true || ! -f "$BINARY_NAME" ) ]]; then
+			link_command=("$CXX" "${LINKCXXFLAGX[@]}" -o "$BINARY_NAME" "${obj_list[@]}" "${LIBS[@]}");
+			"${link_command[@]}";
+			if [ $? != "0" ]; then
+				echo "link failed";
+				exit;
+			else
+				echo "successfully relinked";
+			fi
+		else
+			echo "apprently no need to relink. not sure if this is right, though";
+		fi
+
+		rm $(readlink -e "$tmp_file"); #remove actual file
+		rm "$tmp_file"; #remove local symlink
 		;;
 	*)
 		echo "invlid argument";
 		;; 
 esac
 
-popd
 IFS="$OLD_IFS";
